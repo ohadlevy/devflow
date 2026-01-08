@@ -647,9 +647,29 @@ class WorkflowEngine:
                 previous_attempts=context.previous_iterations
             )
 
-            # Run validation
+            # Run validation with streaming progress
             console.print("Running AI validation...")
-            validation_response = validator.validate_issue(validation_context)
+
+            # Use streaming validation if available, otherwise fall back to regular
+            if hasattr(validator, 'validate_issue_stream'):
+                validation_generator = validator.validate_issue_stream(validation_context)
+                full_response = ""
+
+                # Stream progress updates
+                for progress_message in validation_generator:
+                    if isinstance(progress_message, str):
+                        # Display progress message with Rich styling
+                        console.print(f"  {progress_message}", style="dim")
+                    else:
+                        # This is the final ValidationResponse
+                        validation_response = progress_message
+                        break
+                else:
+                    # Generator completed without returning response (shouldn't happen)
+                    raise AgentError("Validation stream completed without response")
+            else:
+                # Fallback to non-streaming validation
+                validation_response = validator.validate_issue(validation_context)
 
             # Store validation transcript
             session.session_transcript += f"\n=== VALIDATION ===\n{validation_response.message}\n"

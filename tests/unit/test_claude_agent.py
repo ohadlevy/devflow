@@ -1,6 +1,7 @@
 """Unit tests for Claude AI agent."""
 
 import pytest
+import subprocess
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
 
@@ -464,3 +465,223 @@ class TestClaudeAgentProvider:
 
         assert response.success is False
         assert "Connection failed" in response.message
+
+    @patch('devflow.agents.claude.ClaudeAgentProvider._get_context_files')
+    @patch('devflow.agents.claude.ClaudeAgentProvider._run_claude_command_stream')
+    def test_validate_issue_stream_success(self, mock_stream, mock_get_context, agent, mock_issue):
+        """Test streaming validation success case."""
+        # Mock context files
+        mock_get_context.return_value = []
+
+        # Mock the streaming output
+        mock_stream.return_value = iter([
+            "Starting analysis...",
+            "Reading requirements...",
+            "Analyzing feasibility...",
+            "Validation complete."
+        ])
+
+        context = ValidationContext(
+            issue=mock_issue,
+            project_context={},
+            maturity_level="early_stage"
+        )
+
+        # Collect all progress messages
+        messages = []
+        generator = agent.validate_issue_stream(context)
+
+        for item in generator:
+            if isinstance(item, str):
+                messages.append(item)
+            else:
+                # This should be the final ValidationResponse
+                validation_response = item
+
+        # Check that we got progress messages
+        assert "🔍 Starting issue analysis..." in messages
+        assert "📖 Reading project context and issue details..." in messages
+        assert "✅ Analysis complete, processing results..." in messages
+
+        # Check the final response
+        assert validation_response.success is True
+        assert validation_response.result == ValidationResult.VALID
+
+    @patch('devflow.agents.claude.ClaudeAgentProvider._get_context_files')
+    @patch('devflow.agents.claude.ClaudeAgentProvider._run_claude_command_stream')
+    def test_validate_issue_stream_with_content_analysis(self, mock_stream, mock_get_context, agent, mock_issue):
+        """Test streaming validation with content-based progress."""
+        # Mock context files
+        mock_get_context.return_value = []
+
+        # Mock streaming output with content that triggers specific messages
+        mock_stream.return_value = iter([
+            "Starting issue analysis for bug fix",
+            "Checking requirement specifications",
+            "Implementation approach looks feasible",
+            "Test coverage can be ensured",
+            "Validation passed successfully"
+        ])
+
+        context = ValidationContext(
+            issue=mock_issue,
+            project_context={},
+            maturity_level="early_stage"
+        )
+
+        # Collect progress messages
+        messages = []
+        generator = agent.validate_issue_stream(context)
+
+        for item in generator:
+            if isinstance(item, str):
+                messages.append(item)
+            else:
+                validation_response = item
+
+        # Verify content-based progress indicators were triggered
+        progress_messages = "\n".join(messages)
+        assert "🎯 Evaluating issue requirements..." in progress_messages
+        assert "⚙️ Assessing implementation feasibility..." in progress_messages
+        assert "🧪 Checking testability and validation criteria..." in progress_messages
+
+    @patch('devflow.agents.claude.ClaudeAgentProvider._get_context_files')
+    @patch('devflow.agents.claude.ClaudeAgentProvider._run_claude_command_stream')
+    def test_validate_issue_stream_line_count_progress(self, mock_stream, mock_get_context, agent, mock_issue):
+        """Test streaming validation line count progress indicators."""
+        # Mock context files
+        mock_get_context.return_value = []
+
+        # Generate enough lines to trigger line count messages
+        lines = [f"Analysis line {i}" for i in range(25)]
+        mock_stream.return_value = iter(lines)
+
+        context = ValidationContext(
+            issue=mock_issue,
+            project_context={},
+            maturity_level="early_stage"
+        )
+
+        messages = []
+        generator = agent.validate_issue_stream(context)
+
+        for item in generator:
+            if isinstance(item, str):
+                messages.append(item)
+            else:
+                validation_response = item
+
+        # Check that line count progress was shown
+        progress_messages = "\n".join(messages)
+        assert "💭 Analyzing requirements... (10 lines processed)" in progress_messages
+        assert "💭 Analyzing requirements... (20 lines processed)" in progress_messages
+
+    @patch('devflow.agents.claude.ClaudeAgentProvider._get_context_files')
+    @patch('devflow.agents.claude.ClaudeAgentProvider._run_claude_command_stream')
+    def test_validate_issue_stream_error_handling(self, mock_stream, mock_get_context, agent, mock_issue):
+        """Test error handling in streaming validation."""
+        # Mock context files
+        mock_get_context.return_value = []
+
+        # Mock stream that raises an error
+        mock_stream.side_effect = AgentError("Stream failed")
+
+        context = ValidationContext(
+            issue=mock_issue,
+            project_context={},
+            maturity_level="early_stage"
+        )
+
+        messages = []
+        generator = agent.validate_issue_stream(context)
+
+        for item in generator:
+            if isinstance(item, str):
+                messages.append(item)
+            else:
+                validation_response = item
+
+        # Check error message was yielded and response shows failure
+        assert any("❌ Validation error: Stream failed" in msg for msg in messages)
+        assert validation_response.success is False
+        assert validation_response.result == ValidationResult.INVALID
+
+    @patch('subprocess.Popen')
+    def test_run_claude_command_stream_success(self, mock_popen, agent):
+        """Test successful streaming Claude command execution."""
+        # Mock process with streaming output
+        mock_process = Mock()
+        mock_process.stdout.readline.side_effect = [
+            "Line 1\n",
+            "Line 2\n",
+            "Line 3\n",
+            ""  # End of stream
+        ]
+        mock_process.poll.side_effect = [None, None, None, 0]  # Not done, not done, not done, done
+        mock_process.communicate.return_value = ("", "")
+        mock_process.returncode = 0
+        mock_popen.return_value = mock_process
+
+        # Test the stream
+        lines = list(agent._run_claude_command_stream("test prompt"))
+
+        assert lines == ["Line 1", "Line 2", "Line 3"]
+        mock_popen.assert_called_once()
+
+    @patch('subprocess.Popen')
+    def test_run_claude_command_stream_error(self, mock_popen, agent):
+        """Test error handling in streaming Claude command execution."""
+        # Mock process that fails
+        mock_process = Mock()
+        mock_process.stdout.readline.return_value = ""
+        mock_process.poll.return_value = 1
+        mock_process.communicate.return_value = ("", "Error occurred")
+        mock_process.returncode = 1
+        mock_popen.return_value = mock_process
+
+        with pytest.raises(AgentError) as excinfo:
+            list(agent._run_claude_command_stream("test prompt"))
+
+        assert "Claude command failed with code 1" in str(excinfo.value)
+
+    @patch('subprocess.Popen')
+    def test_run_claude_command_stream_timeout(self, mock_popen, agent):
+        """Test timeout handling in streaming Claude command execution."""
+        # Mock process that times out
+        mock_process = Mock()
+        mock_process.stdout.readline.return_value = "Long running line\n"
+        mock_process.poll.return_value = None
+        mock_process.communicate.side_effect = subprocess.TimeoutExpired("claude", 10)
+        mock_process.kill = Mock()
+        mock_process.wait = Mock()
+        mock_popen.return_value = mock_process
+
+        with pytest.raises(AgentError) as excinfo:
+            list(agent._run_claude_command_stream("test prompt", timeout=1))
+
+        assert "Claude command timed out" in str(excinfo.value)
+        mock_process.kill.assert_called_once()
+
+    def test_validate_issue_stream_fallback_for_api_mode(self, agent, mock_issue):
+        """Test that API mode shows appropriate warning in streaming validation."""
+        # Configure agent for API mode
+        agent.use_claude_cli = False
+
+        context = ValidationContext(
+            issue=mock_issue,
+            project_context={},
+            maturity_level="early_stage"
+        )
+
+        messages = []
+        generator = agent.validate_issue_stream(context)
+
+        for item in generator:
+            if isinstance(item, str):
+                messages.append(item)
+            else:
+                validation_response = item
+
+        # Check that API mode warning was shown
+        assert any("⚠️ API mode not yet implemented" in msg for msg in messages)
+        assert validation_response.success is True  # Still succeeds with placeholder

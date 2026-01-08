@@ -7,7 +7,7 @@ to provide consistent automation capabilities across different providers.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Generator, List, Optional, Union
 
 from devflow.adapters.base import Issue, PullRequest
 from devflow.exceptions import AgentError, ValidationError
@@ -298,6 +298,31 @@ class AgentProvider(ABC):
 
         return self._validate_issue_impl(context)
 
+    def validate_issue_stream(self, context: ValidationContext) -> Generator[str, None, ValidationResponse]:
+        """Validate an issue for implementation readiness with streaming progress.
+
+        Args:
+            context: Validation context
+
+        Yields:
+            Progress messages during validation
+
+        Returns:
+            Final validation response
+
+        Raises:
+            AgentError: If validation fails
+        """
+        if not self.supports_capability(AgentCapability.VALIDATION):
+            raise AgentError(
+                f"Agent {self.name} does not support validation capability",
+                agent_type=self.name,
+                operation="validate_issue_stream"
+            )
+
+        # Yield from implementation and return the final response
+        yield from self._validate_issue_stream_impl(context)
+
     def implement_changes(self, context: ImplementationContext) -> ImplementationResponse:
         """Implement code changes for an issue.
 
@@ -392,6 +417,21 @@ class AgentProvider(ABC):
 
         Returns:
             Validation response
+        """
+        pass
+
+    @abstractmethod
+    def _validate_issue_stream_impl(self, context: ValidationContext) -> Generator[str, None, ValidationResponse]:
+        """Implementation-specific issue validation with streaming progress.
+
+        Args:
+            context: Validation context
+
+        Yields:
+            Progress messages during validation
+
+        Returns:
+            Final validation response
         """
         pass
 
