@@ -48,8 +48,9 @@ def process_issue(
         # Initialize agents (skip validation in dry-run mode)
         agent_coordinator = _create_agent_coordinator(config, skip_validation=dry_run)
 
-        # Initialize state manager
-        state_manager = StateManager(config)
+        # Initialize state manager (disabled for now due to threading issues)
+        # TODO: Fix StateManager threading deadlock in future release
+        state_manager = None  # StateManager(config)
 
         # Create workflow engine
         workflow_engine = WorkflowEngine(

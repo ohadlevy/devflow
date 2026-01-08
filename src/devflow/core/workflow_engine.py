@@ -8,7 +8,7 @@ embedded pipeline system.
 import json
 import logging
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -596,7 +596,7 @@ class WorkflowEngine:
                 return {
                     'success': True,
                     'next_state': WorkflowState.VALIDATED.value,
-                    'validation_result': validation_response.dict()
+                    'validation_result': asdict(validation_response)
                 }
 
             elif validation_response.result == ValidationResult.NEEDS_CLARIFICATION:
@@ -607,14 +607,14 @@ class WorkflowEngine:
                 return {
                     'success': False,
                     'error': 'Issue needs clarification',
-                    'validation_result': validation_response.dict()
+                    'validation_result': asdict(validation_response)
                 }
 
             else:
                 return {
                     'success': False,
                     'error': f'Validation failed: {validation_response.result}',
-                    'validation_result': validation_response.dict()
+                    'validation_result': asdict(validation_response)
                 }
 
         except Exception as e:
@@ -751,7 +751,7 @@ class WorkflowEngine:
                 return {
                     'success': True,
                     'next_state': WorkflowState.IMPLEMENTED.value,
-                    'implementation_result': impl_response.dict()
+                    'implementation_result': asdict(impl_response)
                 }
 
             elif impl_response.result == ImplementationResult.PARTIAL:
@@ -761,14 +761,14 @@ class WorkflowEngine:
                 return {
                     'success': True,
                     'next_state': WorkflowState.IMPLEMENTED.value,
-                    'implementation_result': impl_response.dict()
+                    'implementation_result': asdict(impl_response)
                 }
 
             else:
                 return {
                     'success': False,
                     'error': f'Implementation failed: {impl_response.result}',
-                    'implementation_result': impl_response.dict()
+                    'implementation_result': asdict(impl_response)
                 }
 
         except Exception as e:
@@ -865,14 +865,14 @@ class WorkflowEngine:
                 return {
                     'success': True,
                     'next_state': WorkflowState.REVIEW_PASSED.value,
-                    'review_responses': [r.dict() for r in review_responses]
+                    'review_responses': [asdict(r) for r in review_responses]
                 }
             else:
                 console.print("[yellow]⚠ Code review requires fixes[/yellow]")
                 return {
                     'success': True,
                     'next_state': WorkflowState.NEEDS_FIXES.value,
-                    'review_responses': [r.dict() for r in review_responses]
+                    'review_responses': [asdict(r) for r in review_responses]
                 }
 
         except Exception as e:
