@@ -213,6 +213,7 @@ class WorkflowConfig(BaseModel):
 
     validation_enabled: bool = Field(default=True, description="Enable issue validation")
     validation_timeout: int = Field(default=180, ge=30, le=600, description="Validation timeout")
+    validation_requires_approval: bool = Field(default=True, description="Require human approval after validation")
     implementation_max_iterations: int = Field(default=3, ge=1, le=10, description="Max implementation iterations")
     commit_strategy: str = Field(default="squash", description="Git commit strategy")
     context_preservation: bool = Field(default=True, description="Preserve context between iterations")

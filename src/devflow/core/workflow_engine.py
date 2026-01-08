@@ -61,6 +61,7 @@ class WorkflowState(str, Enum):
     """Workflow states for issue processing."""
     PENDING = "pending"
     VALIDATING = "validating"
+    AWAITING_APPROVAL = "awaiting_approval"
     VALIDATED = "validated"
     WORKTREE_CREATING = "worktree_creating"
     IMPLEMENTING = "implementing"
@@ -508,6 +509,7 @@ class WorkflowEngine:
         """
         stage_handlers = {
             WorkflowState.PENDING: self._stage_validation,
+            WorkflowState.AWAITING_APPROVAL: self._stage_validation_approval,
             WorkflowState.VALIDATED: self._stage_worktree_creation,
             WorkflowState.IMPLEMENTING: self._stage_implementation,
             WorkflowState.IMPLEMENTED: self._stage_review,
@@ -590,14 +592,31 @@ class WorkflowEngine:
                         self.config.repo_owner,
                         self.config.repo_name,
                         session.issue_number,
-                        ["validated", "ready-for-implementation"]
+                        ["validated"]
                     )
 
-                return {
-                    'success': True,
-                    'next_state': WorkflowState.VALIDATED.value,
-                    'validation_result': asdict(validation_response)
-                }
+                # Check if approval is required
+                if self.config.workflows.validation_requires_approval and not auto_mode:
+                    return {
+                        'success': True,
+                        'next_state': WorkflowState.AWAITING_APPROVAL.value,
+                        'validation_result': asdict(validation_response)
+                    }
+                else:
+                    # Skip approval in auto mode or when approval not required
+                    if not dry_run:
+                        self.platform_adapter.add_labels_to_issue(
+                            self.config.repo_owner,
+                            self.config.repo_name,
+                            session.issue_number,
+                            ["ready-for-implementation"]
+                        )
+
+                    return {
+                        'success': True,
+                        'next_state': WorkflowState.VALIDATED.value,
+                        'validation_result': asdict(validation_response)
+                    }
 
             elif validation_response.result == ValidationResult.NEEDS_CLARIFICATION:
                 # Post clarification comment
@@ -619,6 +638,93 @@ class WorkflowEngine:
 
         except Exception as e:
             logger.error(f"Validation stage failed: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    def _stage_validation_approval(
+        self,
+        session: WorkflowSession,
+        context: WorkflowContext,
+        auto_mode: bool,
+        dry_run: bool
+    ) -> Dict[str, Any]:
+        """Execute validation approval stage.
+
+        Args:
+            session: Workflow session
+            context: Workflow context
+            auto_mode: Automated mode (should not reach here)
+            dry_run: Dry run mode
+
+        Returns:
+            Stage result
+        """
+        console.print("\n[bold]🔍 Stage: Validation Approval[/bold]")
+
+        if dry_run:
+            return {
+                'success': True,
+                'next_state': WorkflowState.VALIDATED.value,
+                'approval': 'simulated_approval'
+            }
+
+        try:
+            # Extract validation results from session transcript
+            validation_info = "Validation completed successfully."
+            if "=== VALIDATION ===" in session.session_transcript:
+                parts = session.session_transcript.split("=== VALIDATION ===")
+                if len(parts) > 1:
+                    validation_info = parts[-1].split("\n=== ")[0].strip()[:500] + "..."
+
+            # Display validation summary
+            console.print(f"\n[cyan]Issue #{session.issue_number}: {context.issue.title}[/cyan]")
+            console.print(f"[yellow]AI Validation Results:[/yellow]")
+            console.print(f"  {validation_info}")
+
+            # Get user approval
+            while True:
+                response = console.input("\n[bold]Proceed with automated implementation? [Y/n/details]: [/bold]").strip().lower()
+
+                if response in ['y', 'yes', '']:
+                    console.print("[green]✓ Implementation approved by human[/green]")
+
+                    # Add ready-for-implementation label
+                    if not dry_run:
+                        self.platform_adapter.add_labels_to_issue(
+                            self.config.repo_owner,
+                            self.config.repo_name,
+                            session.issue_number,
+                            ["ready-for-implementation"]
+                        )
+
+                    return {
+                        'success': True,
+                        'next_state': WorkflowState.VALIDATED.value,
+                        'approval': 'approved'
+                    }
+
+                elif response in ['n', 'no']:
+                    console.print("[yellow]⚠ Implementation rejected by human[/yellow]")
+                    return {
+                        'success': True,
+                        'next_state': WorkflowState.READY_FOR_HUMAN.value,
+                        'approval': 'rejected'
+                    }
+
+                elif response == 'details':
+                    # Show full validation transcript
+                    console.print("\n[cyan]Full Validation Details:[/cyan]")
+                    console.print(session.session_transcript)
+                    continue
+
+                else:
+                    console.print("[red]Please answer 'y' (yes), 'n' (no), or 'details'[/red]")
+                    continue
+
+        except Exception as e:
+            logger.error(f"Validation approval stage failed: {str(e)}")
             return {
                 'success': False,
                 'error': str(e)

@@ -153,12 +153,10 @@ class ClaudeAgentProvider(AgentProvider):
             AgentError: If command fails
         """
         try:
-            args = ["claude"]
+            args = ["claude", "--print"]  # Use --print for non-interactive output
 
-            # Add context files
-            if context_files:
-                for file_path in context_files[:10]:  # Limit context files
-                    args.extend(["--file", file_path])
+            # TODO: Claude CLI doesn't support --file option
+            # Skip context files for now - could use --add-dir in future
 
             # Add prompt
             args.append(prompt)
