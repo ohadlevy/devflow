@@ -42,6 +42,7 @@ from devflow.agents.base import (
     WorkflowContext
 )
 from devflow.core.config import ProjectConfig
+from devflow.core.auto_fix import AutoFixEngine
 from devflow.exceptions import (
     AgentError,
     PlatformError,
@@ -147,7 +148,8 @@ class WorkflowEngine:
         config: ProjectConfig,
         platform_adapter: PlatformAdapter,
         agent_coordinator: MultiAgentCoordinator,
-        state_manager: Optional['StateManager'] = None
+        state_manager: Optional['StateManager'] = None,
+        enable_auto_fix: bool = True
     ) -> None:
         """Initialize the workflow engine.
 
@@ -156,6 +158,7 @@ class WorkflowEngine:
             platform_adapter: Platform adapter for git/issue operations
             agent_coordinator: AI agent coordinator
             state_manager: State manager instance
+            enable_auto_fix: Enable automatic fixing of CI and review feedback
 
         Raises:
             ValidationError: If configuration is invalid
@@ -164,6 +167,23 @@ class WorkflowEngine:
         self.platform_adapter = platform_adapter
         self.agent_coordinator = agent_coordinator
         self.state_manager = state_manager  # Will be set later to avoid circular imports
+
+        # Initialize auto-fix engine if enabled
+        self.auto_fix_engine = None
+        if enable_auto_fix:
+            try:
+                self.auto_fix_engine = AutoFixEngine(
+                    platform_adapter=platform_adapter,
+                    agent_provider=agent_coordinator.select_best_agent(
+                        capability=AgentCapability.IMPLEMENTATION,
+                        preferences=[config.agents.primary]
+                    ),
+                    working_directory=str(config.project_root)
+                )
+                console.print("[blue]🔧 Auto-fix system initialized[/blue]")
+            except Exception as e:
+                console.print(f"[yellow]⚠ Auto-fix system disabled: {str(e)}[/yellow]")
+                self.auto_fix_engine = None
 
         # Validate configuration
         config_errors = config.validate_complete()
@@ -322,6 +342,10 @@ class WorkflowEngine:
             if existing_session:
                 return existing_session
 
+        # WORKAROUND: Since StateManager is disabled, detect state from git
+        # Check if worktree exists and has commits
+        existing_state = self._detect_workflow_state_from_git(issue_number)
+
         # Fetch issue from platform
         try:
             issue = self.platform_adapter.get_issue(
@@ -338,14 +362,17 @@ class WorkflowEngine:
         # Create new session
         now = datetime.now().isoformat()
 
+        # Use detected state or default to PENDING
+        initial_state = existing_state if existing_state else WorkflowState.PENDING
+
         session = WorkflowSession(
             issue_id=issue.id,
             issue_number=issue_number,
-            current_state=WorkflowState.PENDING,
+            current_state=initial_state,
             iteration_count=0,
             max_iterations=self.config.workflows.implementation_max_iterations,
-            worktree_path=None,
-            branch_name=None,
+            worktree_path=Path(f"/tmp/devflow-worktree-{issue_number}") if existing_state else None,
+            branch_name=f"issue-{issue_number}" if existing_state else None,
             pr_number=None,
             session_transcript="",
             context_data={
@@ -363,6 +390,51 @@ class WorkflowEngine:
             self.state_manager.save_workflow_session(session)
 
         return session
+
+    def _detect_workflow_state_from_git(self, issue_number: int) -> Optional[WorkflowState]:
+        """Detect workflow state from git branches and worktrees.
+
+        Args:
+            issue_number: Issue number to check
+
+        Returns:
+            Current workflow state based on git state, or None if not found
+        """
+        try:
+            branch_name = f"issue-{issue_number}"
+
+            # Check if branch exists locally or remotely
+            result = subprocess.run(
+                ["git", "show-ref", f"refs/heads/{branch_name}", f"refs/remotes/origin/{branch_name}"],
+                capture_output=True,
+                text=True,
+                cwd=self.config.project_root,
+                check=False
+            )
+
+            if result.returncode == 0:
+                # Branch exists - check if it has implementation commits
+                commit_result = subprocess.run(
+                    ["git", "log", "--oneline", f"{branch_name}", "--", "src/"],
+                    capture_output=True,
+                    text=True,
+                    cwd=self.config.project_root,
+                    check=False
+                )
+
+                if commit_result.returncode == 0 and commit_result.stdout.strip():
+                    # Has implementation commits - should be in review
+                    console.print(f"[blue]🔍 Detected existing implementation for issue #{issue_number} - continuing to review[/blue]")
+                    return WorkflowState.IMPLEMENTED
+                else:
+                    # Branch exists but no implementation commits
+                    console.print(f"[yellow]⚠ Branch exists but no implementation found for issue #{issue_number}[/yellow]")
+                    return WorkflowState.VALIDATED
+
+        except Exception as e:
+            logger.debug(f"Error detecting workflow state: {e}")
+
+        return None
 
     def _create_workflow_context(self, session: WorkflowSession) -> WorkflowContext:
         """Create workflow context from session.
@@ -999,7 +1071,27 @@ class WorkflowEngine:
             for response in review_responses:
                 session.session_transcript += f"\n=== REVIEW ({response.decision}) ===\n{response.message}\n"
 
-            if merged_decision == ReviewDecision.APPROVE:
+            # Post AI review comments to GitHub PR
+            try:
+                # Combine all review messages into comprehensive feedback
+                review_body = "## 🤖 DevFlow AI Code Review\n\n"
+                for i, response in enumerate(review_responses, 1):
+                    review_body += f"### Review #{i} - {response.decision.value.title()}\n\n"
+                    review_body += f"{response.message}\n\n"
+
+                # Post the review to GitHub
+                self.platform_adapter.create_pull_request_review(
+                    owner=self.config.repo_owner,
+                    repo=self.config.repo_name,
+                    pr_number=session.pr_number,
+                    body=review_body,
+                    decision=merged_decision
+                )
+                console.print("[blue]✓ AI review posted to GitHub PR[/blue]")
+            except Exception as e:
+                console.print(f"[yellow]⚠ Failed to post review to GitHub: {str(e)}[/yellow]")
+
+            if merged_decision == ReviewDecision.APPROVED:
                 console.print("[green]✓ Code review passed[/green]")
                 return {
                     'success': True,
@@ -1008,6 +1100,40 @@ class WorkflowEngine:
                 }
             else:
                 console.print("[yellow]⚠ Code review requires fixes[/yellow]")
+
+                # Attempt auto-fix if enabled
+                if self.auto_fix_engine and session.pr_number:
+                    console.print("[blue]🔧 Attempting auto-fix for review feedback...[/blue]")
+
+                    try:
+                        auto_fix_result = self.auto_fix_engine.run_auto_fix_cycle(session.pr_number)
+
+                        if auto_fix_result.success:
+                            console.print(f"[green]✓ Auto-fix applied {len(auto_fix_result.fixes_applied)} fixes[/green]")
+
+                            # Update session transcript with auto-fix results
+                            session.session_transcript += f"\n=== AUTO-FIX ===\n"
+                            session.session_transcript += f"Applied {len(auto_fix_result.fixes_applied)} fixes:\n"
+                            for fix in auto_fix_result.fixes_applied:
+                                session.session_transcript += f"- {fix}\n"
+                            session.session_transcript += f"Modified files: {', '.join(auto_fix_result.files_modified)}\n"
+
+                            # Continue to implementation for another review cycle
+                            console.print("[blue]🔄 Triggering re-review after auto-fixes[/blue]")
+                            return {
+                                'success': True,
+                                'next_state': WorkflowState.IMPLEMENTING.value,
+                                'auto_fix_applied': True,
+                                'fixes_applied': auto_fix_result.fixes_applied
+                            }
+                        else:
+                            console.print(f"[yellow]⚠ Auto-fix failed: {auto_fix_result.error_message}[/yellow]")
+                            # Fall back to manual fixes
+
+                    except Exception as e:
+                        console.print(f"[yellow]⚠ Auto-fix error: {str(e)}[/yellow]")
+                        # Fall back to manual fixes
+
                 return {
                     'success': True,
                     'next_state': WorkflowState.NEEDS_FIXES.value,
@@ -1156,8 +1282,8 @@ class WorkflowEngine:
 
         if ReviewDecision.REQUEST_CHANGES in decisions:
             return ReviewDecision.REQUEST_CHANGES
-        elif ReviewDecision.APPROVE in decisions:
-            return ReviewDecision.APPROVE
+        elif ReviewDecision.APPROVED in decisions:
+            return ReviewDecision.APPROVED
         else:
             return ReviewDecision.COMMENT
 
@@ -1210,6 +1336,128 @@ class WorkflowEngine:
         console.print(f"\n[yellow]Completed stage: {current_state.value}[/yellow]")
         response = console.input("Continue to next stage? [Y/n]: ").strip().lower()
         return response != 'n'
+
+    def monitor_and_auto_fix_ci(self, session: WorkflowSession, max_attempts: int = 3) -> Dict[str, Any]:
+        """Monitor CI status and apply auto-fixes for failures.
+
+        Args:
+            session: Workflow session with PR
+            max_attempts: Maximum auto-fix attempts
+
+        Returns:
+            Results of CI monitoring and auto-fix attempts
+        """
+        if not self.auto_fix_engine or not session.pr_number:
+            return {'success': False, 'error': 'Auto-fix not available or no PR'}
+
+        console.print(f"[blue]🔍 Monitoring CI status for PR #{session.pr_number}[/blue]")
+
+        for attempt in range(max_attempts):
+            console.print(f"[cyan]CI monitoring attempt {attempt + 1}/{max_attempts}[/cyan]")
+
+            try:
+                # Wait for CI to complete (simplified - in reality would poll status)
+                import time
+                if attempt == 0:
+                    console.print("[blue]⏳ Waiting for CI to complete...[/blue]")
+                    time.sleep(30)  # Give CI time to run
+
+                # Run auto-fix cycle to detect CI failures
+                auto_fix_result = self.auto_fix_engine.run_auto_fix_cycle(session.pr_number)
+
+                if not auto_fix_result.success and auto_fix_result.error_message:
+                    if "No feedback items found" in auto_fix_result.error_message:
+                        console.print("[green]✓ No CI failures detected[/green]")
+                        return {'success': True, 'ci_status': 'passing', 'attempts': attempt + 1}
+                    else:
+                        console.print(f"[red]✗ CI monitoring failed: {auto_fix_result.error_message}[/red]")
+                        return {'success': False, 'error': auto_fix_result.error_message}
+
+                if auto_fix_result.success and auto_fix_result.fixes_applied:
+                    console.print(f"[green]✓ Auto-fixed {len(auto_fix_result.fixes_applied)} CI failures[/green]")
+
+                    # Update session transcript
+                    session.session_transcript += f"\n=== CI AUTO-FIX (Attempt {attempt + 1}) ===\n"
+                    for fix in auto_fix_result.fixes_applied:
+                        session.session_transcript += f"- {fix}\n"
+
+                    # Continue monitoring for additional failures
+                    console.print("[blue]🔄 Continuing CI monitoring after fixes...[/blue]")
+                    continue
+                else:
+                    # No fixes needed
+                    console.print("[green]✓ CI checks passing[/green]")
+                    return {
+                        'success': True,
+                        'ci_status': 'passing',
+                        'attempts': attempt + 1,
+                        'total_fixes': sum(len(auto_fix_result.fixes_applied) for _ in range(attempt + 1))
+                    }
+
+            except Exception as e:
+                console.print(f"[yellow]⚠ CI monitoring error (attempt {attempt + 1}): {str(e)}[/yellow]")
+                if attempt == max_attempts - 1:
+                    return {'success': False, 'error': str(e)}
+                continue
+
+        return {
+            'success': False,
+            'error': f'Maximum auto-fix attempts ({max_attempts}) reached',
+            'attempts': max_attempts
+        }
+
+    def run_comprehensive_auto_fix(self, session: WorkflowSession) -> Dict[str, Any]:
+        """Run comprehensive auto-fix including both CI and review feedback.
+
+        Args:
+            session: Workflow session
+
+        Returns:
+            Comprehensive auto-fix results
+        """
+        if not self.auto_fix_engine or not session.pr_number:
+            return {'success': False, 'error': 'Auto-fix not available or no PR'}
+
+        console.print(f"[blue]🔧 Running comprehensive auto-fix for PR #{session.pr_number}[/blue]")
+
+        try:
+            # Run auto-fix cycle for both CI and review feedback
+            auto_fix_result = self.auto_fix_engine.run_auto_fix_cycle(
+                pr_number=session.pr_number,
+                max_iterations=3
+            )
+
+            if auto_fix_result.success:
+                console.print(f"[green]✓ Comprehensive auto-fix completed[/green]")
+                console.print(f"  Applied fixes: {len(auto_fix_result.fixes_applied)}")
+                console.print(f"  Modified files: {len(auto_fix_result.files_modified)}")
+
+                # Update session with results
+                session.session_transcript += f"\n=== COMPREHENSIVE AUTO-FIX ===\n"
+                session.session_transcript += f"Validation passed: {auto_fix_result.validation_passed}\n"
+                for fix in auto_fix_result.fixes_applied:
+                    session.session_transcript += f"- {fix}\n"
+
+                return {
+                    'success': True,
+                    'fixes_applied': auto_fix_result.fixes_applied,
+                    'files_modified': auto_fix_result.files_modified,
+                    'validation_passed': auto_fix_result.validation_passed
+                }
+            else:
+                console.print(f"[yellow]⚠ Comprehensive auto-fix completed with issues[/yellow]")
+                if auto_fix_result.error_message:
+                    console.print(f"  Error: {auto_fix_result.error_message}")
+
+                return {
+                    'success': False,
+                    'error': auto_fix_result.error_message,
+                    'partial_fixes': auto_fix_result.fixes_applied
+                }
+
+        except Exception as e:
+            console.print(f"[red]✗ Comprehensive auto-fix failed: {str(e)}[/red]")
+            return {'success': False, 'error': str(e)}
 
     def get_workflow_status(self, issue_number: int) -> Optional[Dict[str, Any]]:
         """Get workflow status for an issue.

@@ -713,6 +713,103 @@ def repo_setup_labels(
         raise click.ClickException("Label setup failed")
 
 
+@cli.group(name='autofix')
+@click.pass_context
+def autofix_group(ctx: click.Context) -> None:
+    """Auto-fix CI failures and review feedback."""
+    pass
+
+
+@autofix_group.command(name='pr')
+@click.argument('pr_number', type=int)
+@click.option(
+    '--max-iterations',
+    default=3,
+    help='Maximum auto-fix iterations',
+    show_default=True
+)
+@click.option(
+    '--working-dir',
+    type=click.Path(exists=True, file_okay=False),
+    default='.',
+    help='Working directory (default: current directory)'
+)
+@click.option(
+    '--dry-run',
+    is_flag=True,
+    help='Show what would be fixed without making changes'
+)
+@click.pass_context
+def autofix_pr(
+    ctx: click.Context,
+    pr_number: int,
+    max_iterations: int,
+    working_dir: str,
+    dry_run: bool
+) -> None:
+    """Auto-fix issues for a specific pull request."""
+    from devflow.cli.commands.autofix import pr as autofix_pr_cmd
+
+    try:
+        autofix_pr_cmd.callback(pr_number, max_iterations, working_dir, dry_run)
+    except Exception as e:
+        handle_error(e, ctx.obj.get('debug', False))
+        raise click.ClickException("Auto-fix failed")
+
+
+@autofix_group.command(name='monitor')
+@click.option(
+    '--working-dir',
+    type=click.Path(exists=True, file_okay=False),
+    default='.',
+    help='Working directory (default: current directory)'
+)
+@click.option(
+    '--max-prs',
+    default=10,
+    help='Maximum number of PRs to check',
+    show_default=True
+)
+@click.pass_context
+def autofix_monitor(
+    ctx: click.Context,
+    working_dir: str,
+    max_prs: int
+) -> None:
+    """Monitor open PRs and auto-fix any CI failures."""
+    from devflow.cli.commands.autofix import monitor as autofix_monitor_cmd
+
+    try:
+        autofix_monitor_cmd.callback(working_dir, max_prs)
+    except Exception as e:
+        handle_error(e, ctx.obj.get('debug', False))
+        raise click.ClickException("Auto-fix monitoring failed")
+
+
+@autofix_group.command(name='status')
+@click.argument('pr_number', type=int)
+@click.option(
+    '--working-dir',
+    type=click.Path(exists=True, file_okay=False),
+    default='.',
+    help='Working directory (default: current directory)'
+)
+@click.pass_context
+def autofix_status(
+    ctx: click.Context,
+    pr_number: int,
+    working_dir: str
+) -> None:
+    """Check auto-fix status for a pull request."""
+    from devflow.cli.commands.autofix import status as autofix_status_cmd
+
+    try:
+        autofix_status_cmd.callback(pr_number, working_dir)
+    except Exception as e:
+        handle_error(e, ctx.obj.get('debug', False))
+        raise click.ClickException("Auto-fix status check failed")
+
+
 @cli.command()
 @click.pass_context
 def presets(ctx: click.Context) -> None:

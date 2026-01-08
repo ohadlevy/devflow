@@ -137,14 +137,20 @@ class ClaudeAgentProvider(AgentProvider):
         self,
         prompt: str,
         context_files: List[str] = None,
-        timeout: int = 300
+        timeout: int = 300,
+        allowed_tools: List[str] = None,
+        working_directory: str = None
     ) -> str:
-        """Run Claude Code CLI command.
+        """Run Claude Code CLI command with sophisticated permission system.
+
+        Based on the original pipeline's permission and guidance approach.
 
         Args:
             prompt: Prompt to send to Claude
-            context_files: Files to include as context
+            context_files: Files to include as context (unused - using --add-dir instead)
             timeout: Command timeout
+            allowed_tools: Whitelist of tools/operations Claude can use
+            working_directory: Working directory for Claude (enables --add-dir)
 
         Returns:
             Claude's response
@@ -153,36 +159,143 @@ class ClaudeAgentProvider(AgentProvider):
             AgentError: If command fails
         """
         try:
-            args = ["claude", "--print"]  # Use --print for non-interactive output
+            args = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose"]
 
-            # TODO: Claude CLI doesn't support --file option
-            # Skip context files for now - could use --add-dir in future
+            # Add sophisticated permission system from original pipeline
+            if allowed_tools:
+                args.extend(["--allowedTools", " ".join(allowed_tools)])
 
-            # Add prompt
-            args.append(prompt)
+            if working_directory:
+                args.extend(["--add-dir", str(working_directory)])
 
-            result = subprocess.run(
+            from rich.console import Console
+            console = Console()
+
+            console.print("[cyan]🚀 Starting Claude streaming session...[/cyan]")
+
+            # Use Popen for real-time streaming like the original
+            process = subprocess.Popen(
                 args,
-                capture_output=True,
+                cwd=working_directory,  # Critical: set working directory like original
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                check=True,
-                timeout=timeout
+                bufsize=1  # Line buffered for real-time output
             )
 
-            return result.stdout
+            stdout_lines = []
 
-        except subprocess.CalledProcessError as e:
-            error_msg = f"Claude command failed: {e.stderr or str(e)}"
-            raise AgentError(error_msg, agent_type=self.name) from e
+            # Stream and display progress in real-time
+            try:
+                while True:
+                    if process.poll() is not None:
+                        # Process finished, read remaining output
+                        remaining = process.stdout.read()
+                        if remaining:
+                            for line in remaining.split('\n'):
+                                if line.strip():
+                                    formatted = self._format_stream_json(line)
+                                    if formatted:
+                                        console.print(formatted, end="")
+                                    stdout_lines.append(line)
+                        break
+
+                    # Read line-by-line for real-time progress
+                    line = process.stdout.readline()
+                    if line:
+                        formatted = self._format_stream_json(line)
+                        if formatted:
+                            console.print(formatted, end="")
+                        stdout_lines.append(line)
+
+            except Exception as stream_error:
+                console.print(f"[red]Streaming error: {stream_error}[/red]")
+
+            # Get final result
+            process.wait(timeout=timeout)
+            full_output = "".join(stdout_lines)
+
+            if process.returncode != 0:
+                stderr_output = process.stderr.read() if process.stderr else "Unknown error"
+                raise subprocess.CalledProcessError(process.returncode, args, stderr=stderr_output)
+
+            console.print("[green]✅ Claude session completed[/green]")
+            return full_output
 
         except subprocess.TimeoutExpired as e:
+            if 'process' in locals():
+                process.kill()
             raise AgentError(
                 f"Claude command timed out after {timeout}s",
                 agent_type=self.name
             ) from e
 
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Claude command failed: {e.stderr or str(e)}"
+            raise AgentError(error_msg, agent_type=self.name) from e
+
         except Exception as e:
             raise AgentError(f"Claude execution failed: {str(e)}") from e
+
+    def _format_stream_json(self, line: str) -> str:
+        """Format a stream-json line for real-time progress display.
+
+        Based on original pipeline's _format_stream_json method.
+
+        Args:
+            line: JSON line from Claude stream-json output
+
+        Returns:
+            Formatted string for display, or empty string if nothing to show
+        """
+        try:
+            import json
+            data = json.loads(line.strip())
+            msg_type = data.get("type")
+
+            if msg_type == "system":
+                subtype = data.get("subtype")
+                if subtype == "init":
+                    model = data.get("model", "unknown")
+                    return f"🔧 Session initialized (model: {model})\n"
+                return ""
+
+            elif msg_type == "assistant":
+                message = data.get("message", {})
+                content = message.get("content", [])
+
+                output_parts = []
+                for item in content:
+                    if item.get("type") == "text":
+                        text = item.get("text", "").strip()
+                        if text:
+                            # Show first 100 chars of AI thinking for progress
+                            display_text = text[:100] + "..." if len(text) > 100 else text
+                            output_parts.append(f"💭 {display_text}")
+
+                    elif item.get("type") == "tool_use":
+                        tool_name = item.get("name")
+                        tool_input = item.get("input", {})
+
+                        # Show tool usage for progress tracking
+                        if tool_name == "Read" and "file_path" in tool_input:
+                            file_path = tool_input["file_path"].split("/")[-1]  # Just filename
+                            output_parts.append(f"📖 Reading {file_path}")
+                        elif tool_name == "Edit":
+                            file_path = tool_input.get("file_path", "file").split("/")[-1]
+                            output_parts.append(f"✏️  Editing {file_path}")
+                        elif tool_name == "Write":
+                            file_path = tool_input.get("file_path", "file").split("/")[-1]
+                            output_parts.append(f"📝 Writing {file_path}")
+                        else:
+                            output_parts.append(f"🔧 Using {tool_name}")
+
+                return "\n".join(output_parts) + "\n" if output_parts else ""
+
+            return ""
+
+        except (json.JSONDecodeError, KeyError, AttributeError):
+            return ""
 
     def _validate_issue_impl(self, context: ValidationContext) -> ValidationResponse:
         """Implementation-specific issue validation."""
@@ -190,10 +303,17 @@ class ClaudeAgentProvider(AgentProvider):
             # Build validation prompt based on the original sophisticated system
             prompt = self._build_validation_prompt(context)
 
-            # Run Claude validation
+            # Run Claude validation with permission system from original
             if self.use_claude_cli:
-                context_files = self._get_context_files(context)
-                response_text = self._run_claude_command(prompt, context_files, timeout=180)
+                # Define allowed tools for validation (limited read-only operations)
+                allowed_tools = ["Read", "Grep", "Glob", "TodoWrite"]
+
+                response_text = self._run_claude_command(
+                    prompt,
+                    timeout=180,
+                    allowed_tools=allowed_tools,
+                    working_directory=None  # Validation runs in project root
+                )
             else:
                 # TODO: Implement Claude API call
                 response_text = "Validation not yet implemented for Claude API"
@@ -306,15 +426,19 @@ Be thorough but concise. Focus on actionable technical details that would help a
         # Look for structured decision markers
         response_lower = response_text.lower()
 
-        # Check for explicit validation result
-        if "validation: valid" in response_lower or "result: valid" in response_lower:
+        # Check for explicit validation result (handle markdown formatting)
+        if ("validation: valid" in response_lower or
+            "validation**: valid" in response_lower or
+            "result: valid" in response_lower):
             return ValidationResult.VALID
         elif ("validation: needs_clarification" in response_lower or
+              "validation**: needs_clarification" in response_lower or
               "needs clarification" in response_lower or
               "unclear" in response_lower or
               "ambiguous" in response_lower):
             return ValidationResult.NEEDS_CLARIFICATION
         elif ("validation: invalid" in response_lower or
+              "validation**: invalid" in response_lower or
               "result: invalid" in response_lower or
               "cannot implement" in response_lower or
               "insufficient information" in response_lower):
@@ -340,10 +464,44 @@ Be thorough but concise. Focus on actionable technical details that would help a
             # Build implementation prompt
             prompt = self._build_implementation_prompt(context)
 
-            # Run Claude implementation
+            # Run Claude implementation with sophisticated permission system
             if self.use_claude_cli:
-                context_files = self._get_context_files(context)
-                response_text = self._run_claude_command(prompt, context_files, timeout=600)
+                from rich.console import Console
+                console = Console()
+
+                console.print("[cyan]📝 Preparing implementation prompt...[/cyan]")
+
+                # Define allowed tools from original pipeline (comprehensive implementation permissions)
+                allowed_tools = [
+                    # File operations in worktree
+                    "Read", "Edit", "Write", "Glob", "Grep",
+                    # Git operations on assigned branch only
+                    "Bash(git add:*)", "Bash(git commit:*)", "Bash(git status:*)",
+                    "Bash(git diff:*)", "Bash(git log:*)", "Bash(git rebase:*)",
+                    "Bash(git reset:*)", "Bash(git show:*)",
+                    # Tests and linters
+                    "Bash(pytest:*)", "Bash(python -m pytest:*)", "Bash(python3 -m pytest:*)",
+                    "Bash(black:*)", "Bash(isort:*)", "Bash(flake8:*)", "Bash(coverage:*)",
+                    # Pre-commit hooks
+                    "Bash(pre-commit:*)", "Bash(source venv/bin/activate*)",
+                    # Python operations
+                    "Bash(python:*)", "Bash(python3:*)", "Bash(pip:*)",
+                    # GitHub operations
+                    "Bash(gh pr create:*)", "Bash(gh issue comment:*)",
+                    "Bash(gh issue create:*)", "Bash(gh issue view:*)",
+                    # Utility tools
+                    "Task", "TodoWrite"
+                ]
+
+                console.print("[cyan]🤖 Sending request to Claude with permissions...[/cyan]")
+                response_text = self._run_claude_command(
+                    prompt,
+                    timeout=600,
+                    allowed_tools=allowed_tools,
+                    working_directory=context.working_directory
+                )
+
+                console.print("[green]✅ Received implementation from Claude[/green]")
             else:
                 response_text = "Implementation not yet implemented for Claude API"
 
@@ -370,78 +528,121 @@ Be thorough but concise. Focus on actionable technical details that would help a
             )
 
     def _build_implementation_prompt(self, context: ImplementationContext) -> str:
-        """Build implementation prompt."""
+        """Build sophisticated implementation prompt based on original pipeline."""
         issue = context.issue
         constraints = context.constraints
-        maturity = getattr(context, 'maturity_level', 'early_stage')
+        iteration_count = constraints.get('current_iteration', 1)
+        max_iterations = constraints.get('max_iterations', 3)
 
-        prompt = f"""You are an expert software developer implementing a GitHub issue automatically.
+        # Get branch name from working directory (assumes worktree pattern)
+        import os
+        branch_name = f"issue-{issue.number}"
 
-# IMPLEMENTATION REQUEST
+        # Build sophisticated prompt based on the original pipeline's approach
+        prompt = f"""You are implementing a fix for GitHub issue #{issue.number}: {issue.title}
 
-## Issue Context
-**Issue #**: {issue.number}
-**Title**: {issue.title}
-**Description**: {issue.body}
-**Labels**: {', '.join(issue.labels) if issue.labels else 'None'}
+⚠️  CRITICAL RULE - COMMIT MESSAGE FORMAT ⚠️
+ABSOLUTELY FORBIDDEN in commit messages:
+- ANY mention of "Claude", "AI", "artificial intelligence", "LLM", "language model"
+- ANY Co-Authored-By lines with "Claude" or AI-related names
+- ANY "Generated with" or "Created by" lines mentioning tools/AI
+- ANY emoji attributions like "🤖 Generated with..."
 
-## Implementation Environment
-- **Working Directory**: {context.working_directory}
-- **Project Maturity**: {maturity}
-- **Max Iterations**: {constraints.get('max_iterations', 3)}
-- **Current Iteration**: {constraints.get('current_iteration', 1)}
+Your commits MUST look like they were written by a human developer.
+Use simple, professional commit messages like: "Fix authentication retry logic (#{issue.number})"
 
-## Validation Results
-{context.validation_result if hasattr(context, 'validation_result') else 'No validation results available'}
+VIOLATION OF THIS RULE = IMMEDIATE FAILURE
 
-## Previous Attempts
-{len(context.previous_iterations)} previous implementation attempts have been made.
-{self._format_previous_attempts(context.previous_iterations)}
+Issue details:
+{issue.body}
 
-## Implementation Requirements
+OPERATIONAL CONSTRAINTS (CRITICAL - MUST FOLLOW):
 
-### Quality Standards (Based on {maturity} maturity)
-{"- Comprehensive testing required" if maturity in ["stable", "mature"] else "- Basic testing required"}
-{"- Documentation updates mandatory" if maturity in ["stable", "mature"] else "- Documentation updates recommended"}
-{"- Breaking changes forbidden" if maturity == "mature" else "- Breaking changes allowed with justification"}
-{"- Performance impact analysis required" if maturity in ["stable", "mature"] else "- Performance considerations noted"}
+Allowed Operations:
+✓ Read ANY file in the worktree: {context.working_directory}
+✓ Edit/Write/Delete files in the worktree: {context.working_directory}
+✓ Create new files and directories in the worktree
+✓ Run tests, linters, pre-commit hooks (pytest, black, isort, flake8, etc.)
+✓ Install dependencies (pip install in venv)
+✓ Git operations on branch: {branch_name}
+  - git add, commit, rebase, squash, amend, reset
+  - ONLY on your assigned branch {branch_name}
+✓ GitHub operations (via gh CLI):
+  - Create pull requests for this issue
+  - Add comments to issue #{issue.number}
+  - Create new issues if bugs/tasks discovered during work
+  - Read repository information
 
-### Implementation Guidelines
-1. **Code Changes**: Create/modify only necessary files
-2. **Testing**: Add appropriate tests for new functionality
-3. **Documentation**: Update relevant documentation
-4. **Convention**: Follow existing project patterns and style
-5. **Safety**: Avoid breaking changes unless explicitly required
+Forbidden Operations:
+✗ NO git operations on other branches (main, master, etc.)
+✗ NO creating or deleting git tags
+✗ NO pushing to remote (orchestrator handles this)
+✗ NO merging pull requests
+✗ NO closing or deleting issues
+✗ NO modifying files outside worktree: {context.working_directory}
+✗ NO operations on other worktrees or repositories
 
-### Error Handling
-- Validate inputs at boundaries
-- Provide clear error messages
-- Handle edge cases appropriately
-- Log important events for debugging
+Your tasks:
+1. Explore the codebase to locate the files that need changes
+2. Implement the fix as described in the issue
+3. Write comprehensive tests (unit and/or integration as needed)
+4. Ensure all pre-commit hooks pass (black, isort, flake8, pytest)
+5. Commit your changes (one clean commit, squash if needed)
 
-## Expected Response
+Working directory: {context.working_directory}
+Current branch: {branch_name}
 
-Implement the solution and provide a summary in this format:
+Git Workflow (CRITICAL - MUST FOLLOW):
+- ⚠️  FORBIDDEN: NO "Claude", "AI", "Generated with", or "Co-Authored-By: Claude" in commits
+- ⚠️  Commit messages MUST appear human-written (see CRITICAL RULE above)
+- MUST use venv for commits: source venv/bin/activate && git commit ...
+- NEVER EVER use --no-verify flag (FORBIDDEN - hooks must always run)
+- If pre-commit hooks fail: fix the issues, don't skip hooks
+- Create atomic commits (one logical change per commit)
+- If multiple commits needed: squash them before finishing
+  Command: git rebase -i HEAD~N  (mark all but first as 'squash')
+- If pre-commit hooks modify files: amend the commit
+  Commands: source venv/bin/activate && git add -u && git commit --amend --no-edit
+- Commit message format: "Fix description (#{issue.number})" - NOTHING ELSE
 
-**IMPLEMENTATION**: [SUCCESS | PARTIAL | FAILED]
+FORBIDDEN Git Operations (DO NOT DO THESE):
+- git commit --no-verify  (NEVER skip hooks)
+- git commit -n           (NEVER skip hooks)
+- Any flag that bypasses pre-commit hooks
 
-**FILES_CHANGED**:
-- file1.py: [brief description of changes]
-- file2.py: [brief description of changes]
+Common Git Operations:
+1. Squash multiple commits:
+   git rebase -i HEAD~N
+   Change 'pick' to 'squash' or 's' for all but the first commit
 
-**TESTS_ADDED**:
-- test_file1.py: [brief description of tests]
+2. Amend after pre-commit changes:
+   git add -u
+   git commit --amend --no-edit
 
-**DOCUMENTATION_UPDATED**:
-- README.md: [description of changes]
+3. Reset and recommit cleanly:
+   git reset --soft HEAD~N
+   git commit -m "Clean commit message"
 
-**VALIDATION**:
-[How to verify the implementation works]
+Project Requirements:
+- Maintain high test coverage
+- Follow existing code patterns
+- Comprehensive tests required
+- DO NOT mention Claude/AI anywhere
 
-**REMAINING_WORK**:
-[Any follow-up tasks needed]
+Expected Output (JSON):
+{{
+  "success": true/false,
+  "files_modified": ["list", "of", "files"],
+  "summary": "brief summary of changes",
+  "commit_sha": "sha if committed",
+  "commit_message": "the final commit message (MUST NOT contain Claude/AI/Generated)",
+  "commits_squashed": true/false,
+  "errors": ["any", "errors"]
+}}
 
-Focus on creating a complete, working solution that passes all existing tests and adds appropriate new tests.
+FINAL REMINDER: Check your commit message does NOT contain:
+❌ "Claude" ❌ "AI" ❌ "Generated with" ❌ "Co-Authored-By: Claude"
+✅ Use simple human-style commit like: "Fix authentication retry (#{issue.number})"
 """
         return prompt
 

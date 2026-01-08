@@ -357,6 +357,43 @@ class PluginError(DevFlowError):
         self.plugin_type = plugin_type
 
 
+class AutoFixError(DevFlowError):
+    """Raised when auto-fix operations fail.
+
+    This exception is raised for auto-fix-related errors:
+    - AI agent failures during fix generation
+    - Git operation failures during commit/push
+    - Validation failures after fixes
+    - Feedback detection failures
+    """
+
+    def __init__(
+        self,
+        message: str,
+        pr_number: Optional[int] = None,
+        fix_type: Optional[str] = None,
+        stage: Optional[str] = None,
+        **kwargs
+    ) -> None:
+        context = kwargs.pop("context", {})
+        if pr_number:
+            context["pr_number"] = pr_number
+        if fix_type:
+            context["fix_type"] = fix_type
+        if stage:
+            context["stage"] = stage
+
+        super().__init__(
+            message,
+            error_code="AUTOFIX_ERROR",
+            context=context,
+            **kwargs
+        )
+        self.pr_number = pr_number
+        self.fix_type = fix_type
+        self.stage = stage
+
+
 # Exception mapping for easier error handling
 ERROR_MAPPING = {
     "validation": ValidationError,
@@ -369,6 +406,7 @@ ERROR_MAPPING = {
     "permission": PermissionError,
     "state": StateError,
     "plugin": PluginError,
+    "autofix": AutoFixError,
 }
 
 

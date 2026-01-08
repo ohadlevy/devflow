@@ -630,9 +630,50 @@ class GitHubPlatformAdapter(PlatformAdapter):
         comments: Optional[List[Dict[str, Any]]] = None
     ) -> Review:
         """Create a pull request review."""
-        # Note: This is a placeholder - would need full implementation
-        # for the sophisticated review features from the original system
-        raise NotImplementedError("PR review creation not yet implemented")
+        try:
+            # Map ReviewDecision to gh CLI format
+            gh_decision_map = {
+                ReviewDecision.APPROVED: "APPROVE",
+                ReviewDecision.REQUEST_CHANGES: "REQUEST_CHANGES",
+                ReviewDecision.COMMENT: "COMMENT"
+            }
+
+            # Use gh CLI to create review
+            args = [
+                "pr", "review", str(pr_number),
+                "--repo", f"{owner}/{repo}",
+                "--body", body,
+            ]
+
+            # Add decision if not just a comment
+            if decision in gh_decision_map:
+                if decision == ReviewDecision.APPROVED:
+                    args.append("--approve")
+                elif decision == ReviewDecision.REQUEST_CHANGES:
+                    args.append("--request-changes")
+                # For COMMENT, no additional flag needed
+
+            result = self._run_gh_command(args)
+
+            # Create Review object - gh CLI doesn't return review ID easily
+            # so we'll create a basic review object
+            from datetime import datetime
+            review = Review(
+                id=f"review-{pr_number}-{int(datetime.now().timestamp())}",
+                user="devflow-ai",
+                body=body,
+                state=decision,
+                submitted_at=datetime.now().isoformat(),
+                platform_data={"gh_result": result.stdout}
+            )
+
+            return review
+
+        except Exception as e:
+            raise PlatformError(
+                f"Failed to create review for PR #{pr_number} in {owner}/{repo}: {str(e)}",
+                platform=self.name
+            ) from e
 
     def get_pull_request_files(
         self,
