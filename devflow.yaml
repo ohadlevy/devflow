@@ -1,8 +1,27 @@
-project_name: devflow
-project_root: /home/olevy/claude/devflow
-maturity_level: early_stage
+# DevFlow Configuration - Real GitHub Dogfooding Setup! 🥂
+project_name: "devflow"
+project_root: "."  # Auto-detected from git repository root
+repo_owner: "ohadlevy"
+repo_name: "devflow"
+base_branch: "master"
+maturity_level: "early_stage"
+
 platforms:
-  primary: github
-  issue_tracking: github
-  git_provider: github
-repo_name: devflow
+  primary: "github"
+  github_enabled: true
+  issue_tracking: "github"
+  git_provider: "github"
+
+workflows:
+  validation_enabled: true
+  validation_timeout: 180
+  implementation_max_iterations: 3
+  commit_strategy: "squash"
+  context_preservation: true
+  multi_source_review: true
+  human_override_detection: true
+  followup_issue_creation: true
+
+agents:
+  primary: "claude"
+  claude_model: "claude-3.5-sonnet"

@@ -163,7 +163,7 @@ class GitHubPlatformAdapter(PlatformAdapter):
         try:
             result = self._run_gh_command([
                 "repo", "view", f"{owner}/{repo}",
-                "--json", "id,name,nameWithOwner,description,defaultBranchRef,isPrivate,url,sshUrl,cloneUrl"
+                "--json", "id,name,nameWithOwner,description,defaultBranchRef,isPrivate,url,sshUrl"
             ])
 
             data = json.loads(result.stdout)
@@ -177,7 +177,7 @@ class GitHubPlatformAdapter(PlatformAdapter):
                 default_branch=data["defaultBranchRef"]["name"],
                 private=data["isPrivate"],
                 url=data["url"],
-                clone_url=data["cloneUrl"],
+                clone_url=data["url"] + ".git",  # Construct clone URL from repository URL
                 ssh_url=data["sshUrl"],
                 platform_data=data
             )
