@@ -6,7 +6,9 @@ from devflow.core.config import (
     ProjectConfig,
     ProjectMaturity,
     MaturityConfig,
-    PlatformConfig
+    PlatformConfig,
+    WorkflowConfig,
+    AgentConfig
 )
 from devflow.exceptions import ValidationError
 
@@ -118,3 +120,169 @@ class TestProjectConfig:
         assert settings["maturity_level"] == "prototype"
         assert settings["min_coverage"] == 30  # From prototype preset
         assert settings["platforms"]["primary"] == "github"
+
+
+class TestWorkflowConfig:
+    """Test WorkflowConfig functionality."""
+
+    def test_default_workflow_config(self):
+        """Test default workflow configuration."""
+        config = WorkflowConfig()
+        assert config.validation_enabled is True
+        assert config.validation_timeout == 180
+        assert config.implementation_max_iterations == 3
+        assert config.commit_strategy == "squash"
+
+    def test_custom_workflow_config(self):
+        """Test custom workflow configuration."""
+        config = WorkflowConfig(
+            validation_enabled=False,
+            validation_timeout=300,
+            implementation_max_iterations=5,
+            commit_strategy="merge"
+        )
+        assert config.validation_enabled is False
+        assert config.validation_timeout == 300
+        assert config.implementation_max_iterations == 5
+        assert config.commit_strategy == "merge"
+
+    def test_workflow_config_validation(self):
+        """Test workflow configuration validation."""
+        config = WorkflowConfig(implementation_max_iterations=10)
+        assert config.implementation_max_iterations == 10
+
+        # Test minimum values
+        config = WorkflowConfig(implementation_max_iterations=1)
+        assert config.implementation_max_iterations == 1
+
+    def test_invalid_commit_strategy(self):
+        """Test invalid commit strategy validation."""
+        with pytest.raises(ValueError, match="Invalid commit strategy"):
+            WorkflowConfig(commit_strategy="invalid")
+
+
+class TestAgentConfig:
+    """Test AgentConfig functionality."""
+
+    def test_claude_agent_default(self):
+        """Test Claude agent with default model."""
+        config = AgentConfig(primary="claude")
+        assert config.primary == "claude"
+        assert config.claude_model == "claude-3.5-sonnet"
+
+    def test_claude_agent_custom_model(self):
+        """Test Claude agent with custom model."""
+        config = AgentConfig(
+            primary="claude",
+            claude_model="claude-3-opus"
+        )
+        assert config.primary == "claude"
+        assert config.claude_model == "claude-3-opus"
+
+    def test_mock_agent(self):
+        """Test mock agent configuration."""
+        config = AgentConfig(primary="mock")
+        assert config.primary == "mock"
+        # Claude model should still have default even for mock
+        assert config.claude_model == "claude-3.5-sonnet"
+
+    def test_custom_model_variants(self):
+        """Test various Claude model configurations."""
+        models = [
+            "claude-3.5-sonnet",
+            "claude-3-opus",
+            "claude-3-sonnet",
+            "claude-3-haiku"
+        ]
+
+        for model in models:
+            config = AgentConfig(primary="claude", claude_model=model)
+            assert config.claude_model == model
+
+
+class TestCompleteProjectConfig:
+    """Test complete ProjectConfig with all components."""
+
+    def test_full_project_config(self):
+        """Test creating complete project configuration."""
+        config = ProjectConfig(
+            project_name="test-project",
+            project_root=Path.cwd(),
+            repo_owner="test-owner",
+            repo_name="test-repo",
+            base_branch="main",
+            maturity_level=ProjectMaturity.STABLE,
+            platforms=PlatformConfig(primary="github"),
+            workflows=WorkflowConfig(
+                validation_enabled=True,
+                implementation_max_iterations=5
+            ),
+            agents=AgentConfig(
+                primary="claude",
+                claude_model="claude-3-opus"
+            )
+        )
+
+        assert config.project_name == "test-project"
+        assert config.repo_owner == "test-owner"
+        assert config.repo_name == "test-repo"
+        assert config.base_branch == "main"
+        assert config.maturity_level == ProjectMaturity.STABLE
+        assert config.platforms.primary == "github"
+        assert config.workflows.validation_enabled is True
+        assert config.workflows.implementation_max_iterations == 5
+        assert config.agents.primary == "claude"
+        assert config.agents.claude_model == "claude-3-opus"
+
+    def test_config_with_gitlab(self):
+        """Test configuration with GitLab as primary."""
+        config = ProjectConfig(
+            project_name="gitlab-project",
+            project_root=Path.cwd(),
+            repo_owner="gitlab-owner",
+            repo_name="gitlab-repo",
+            base_branch="master",
+            maturity_level=ProjectMaturity.MATURE,
+            platforms=PlatformConfig(primary="gitlab"),
+            workflows=WorkflowConfig(),
+            agents=AgentConfig(primary="claude")
+        )
+
+        assert config.platforms.primary == "gitlab"
+        assert config.base_branch == "master"
+        assert config.maturity_level == ProjectMaturity.MATURE
+
+    def test_minimal_config(self):
+        """Test minimal valid configuration."""
+        config = ProjectConfig(
+            project_name="minimal-project",
+            project_root=Path.cwd(),
+            repo_owner="owner",
+            repo_name="repo",
+            base_branch="main",
+            maturity_level=ProjectMaturity.PROTOTYPE,
+            platforms=PlatformConfig(primary="github"),
+            workflows=WorkflowConfig(),
+            agents=AgentConfig(primary="mock")
+        )
+
+        assert config.project_name == "minimal-project"
+        assert config.maturity_level == ProjectMaturity.PROTOTYPE
+        assert config.agents.primary == "mock"
+
+    def test_config_with_valid_minimum_fields(self):
+        """Test configuration with minimum valid fields."""
+        config = ProjectConfig(
+            project_name="test-project",
+            project_root=Path.cwd(),
+            repo_owner="owner",
+            repo_name="repo",
+            base_branch="main",
+            maturity_level=ProjectMaturity.EARLY_STAGE,
+            platforms=PlatformConfig(primary="github"),
+            workflows=WorkflowConfig(),
+            agents=AgentConfig(primary="claude")
+        )
+
+        assert config.project_name == "test-project"
+        assert config.repo_owner == "owner"

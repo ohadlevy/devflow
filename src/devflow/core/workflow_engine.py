@@ -392,7 +392,7 @@ class WorkflowEngine:
                 platform_data=session.context_data
             ),
             previous_iterations=self._get_previous_iterations(session),
-            maturity_level=self.config.maturity_level.value,
+            maturity_level=self.config.maturity_level,
             custom_settings=self.config.get_effective_settings()
         )
 
@@ -446,7 +446,8 @@ class WorkflowEngine:
                     WorkflowState.COMPLETED,
                     WorkflowState.MERGED,
                     WorkflowState.MAX_ITERATIONS_REACHED,
-                    WorkflowState.NEEDS_HUMAN_INTERVENTION
+                    WorkflowState.NEEDS_HUMAN_INTERVENTION,
+                    WorkflowState.READY_FOR_HUMAN
                 ]:
                     break
 
