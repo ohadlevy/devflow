@@ -1,0 +1,56 @@
+# DevFlow Configuration Example
+
+# Project identification
+project_name: "my-awesome-project"
+maturity_level: "early_stage"  # prototype, early_stage, stable, mature
+
+# Platform configuration
+platforms:
+  primary: "github"  # github, gitlab, bitbucket
+  issue_tracking: "github"
+  git_provider: "github"
+
+# Repository information (auto-detected from git remote)
+repo_owner: "my-org"
+repo_name: "my-awesome-project"
+base_branch: "main"
+
+# AI agent configuration
+agents:
+  primary: "claude"  # claude, gpt, copilot
+  review_sources: ["claude", "copilot"]
+  timeout: 600
+  max_iterations: 3
+
+# Workflow configuration
+workflows:
+  validation_enabled: true
+  validation_timeout: 180
+  implementation_max_iterations: 3
+  commit_strategy: "squash"  # squash, rebase, merge
+  context_preservation: true
+  multi_source_review: true
+  human_override_detection: true
+  followup_issue_creation: true
+
+# Advanced settings
+max_concurrent_workflows: 3
+log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+
+# Project maturity settings are automatically applied based on maturity_level:
+#
+# PROTOTYPE:
+#   - min_coverage: 30%, review_strictness: lenient
+#   - allow_breaking_changes: true, require_changelog: false
+#
+# EARLY_STAGE:
+#   - min_coverage: 40%, review_strictness: moderate
+#   - allow_breaking_changes: true, require_changelog: true
+#
+# STABLE:
+#   - min_coverage: 70%, review_strictness: strict
+#   - allow_breaking_changes: true (with notice), require_changelog: true
+#
+# MATURE:
+#   - min_coverage: 85%, review_strictness: very_strict
+#   - allow_breaking_changes: false, require_changelog: true
