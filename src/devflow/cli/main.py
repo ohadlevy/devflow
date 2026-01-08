@@ -531,6 +531,188 @@ def config(
         raise click.ClickException("Configuration management failed")
 
 
+@cli.group(name='repo')
+@click.pass_context
+def repo_group(ctx: click.Context) -> None:
+    """Manage GitHub repositories."""
+    pass
+
+
+@repo_group.command(name='create')
+@click.option(
+    '--name',
+    required=True,
+    help='Repository name'
+)
+@click.option(
+    '--owner',
+    help='Repository owner (defaults to authenticated user)'
+)
+@click.option(
+    '--description',
+    default='',
+    help='Repository description'
+)
+@click.option(
+    '--private',
+    is_flag=True,
+    help='Create as private repository'
+)
+@click.option(
+    '--no-labels',
+    is_flag=True,
+    help='Skip setting up DevFlow labels'
+)
+@click.pass_context
+def repo_create(
+    ctx: click.Context,
+    name: str,
+    owner: Optional[str],
+    description: str,
+    private: bool,
+    no_labels: bool
+) -> None:
+    """Create a new GitHub repository."""
+    from devflow.cli.commands.repo import create_repository
+
+    try:
+        result = create_repository(
+            name=name,
+            owner=owner,
+            description=description,
+            private=private,
+            setup_labels=not no_labels
+        )
+
+        console.print(f"\n[green]Repository created successfully![/green]")
+        console.print(f"URL: {result['url']}")
+        console.print(f"SSH: {result['ssh_url']}")
+
+    except Exception as e:
+        handle_error(e, ctx.obj.get('debug', False))
+        raise click.ClickException("Repository creation failed")
+
+
+@repo_group.command(name='connect')
+@click.argument('repository')
+@click.option(
+    '--no-config-update',
+    is_flag=True,
+    help='Don\'t update DevFlow configuration'
+)
+@click.pass_context
+def repo_connect(
+    ctx: click.Context,
+    repository: str,
+    no_config_update: bool
+) -> None:
+    """Connect to an existing GitHub repository.
+
+    REPOSITORY should be in format: owner/repo
+    """
+    from devflow.cli.commands.repo import connect_repository
+
+    try:
+        if '/' not in repository:
+            raise click.BadParameter("Repository must be in format: owner/repo")
+
+        owner, repo = repository.split('/', 1)
+
+        result = connect_repository(
+            owner=owner,
+            repo=repo,
+            update_config=not no_config_update
+        )
+
+        console.print(f"\n[green]Connected to repository![/green]")
+        console.print(f"Repository: {result['repository']['full_name']}")
+        console.print(f"URL: {result['url']}")
+
+    except Exception as e:
+        handle_error(e, ctx.obj.get('debug', False))
+        raise click.ClickException("Repository connection failed")
+
+
+@repo_group.command(name='validate')
+@click.option(
+    '--repository',
+    help='Repository in format owner/repo (uses config if not specified)'
+)
+@click.option(
+    '--no-labels',
+    is_flag=True,
+    help='Skip label validation'
+)
+@click.option(
+    '--no-permissions',
+    is_flag=True,
+    help='Skip permission checks'
+)
+@click.pass_context
+def repo_validate(
+    ctx: click.Context,
+    repository: Optional[str],
+    no_labels: bool,
+    no_permissions: bool
+) -> None:
+    """Validate repository setup for DevFlow."""
+    from devflow.cli.commands.repo import validate_repository_setup
+
+    try:
+        owner = None
+        repo = None
+
+        if repository:
+            if '/' not in repository:
+                raise click.BadParameter("Repository must be in format: owner/repo")
+            owner, repo = repository.split('/', 1)
+
+        result = validate_repository_setup(
+            owner=owner,
+            repo=repo,
+            check_labels=not no_labels,
+            check_permissions=not no_permissions
+        )
+
+        if not result['success']:
+            raise click.ClickException("Repository validation failed")
+
+    except Exception as e:
+        handle_error(e, ctx.obj.get('debug', False))
+        raise click.ClickException("Repository validation failed")
+
+
+@repo_group.command(name='setup-labels')
+@click.option(
+    '--repository',
+    help='Repository in format owner/repo (uses config if not specified)'
+)
+@click.pass_context
+def repo_setup_labels(
+    ctx: click.Context,
+    repository: Optional[str]
+) -> None:
+    """Set up DevFlow standard labels in repository."""
+    from devflow.cli.commands.repo import setup_repository_labels
+
+    try:
+        owner = None
+        repo = None
+
+        if repository:
+            if '/' not in repository:
+                raise click.BadParameter("Repository must be in format: owner/repo")
+            owner, repo = repository.split('/', 1)
+
+        result = setup_repository_labels(owner=owner, repo=repo)
+
+        console.print(f"\n[green]Labels configured for {result['owner']}/{result['repo']}![/green]")
+
+    except Exception as e:
+        handle_error(e, ctx.obj.get('debug', False))
+        raise click.ClickException("Label setup failed")
+
+
 @cli.command()
 @click.pass_context
 def presets(ctx: click.Context) -> None:

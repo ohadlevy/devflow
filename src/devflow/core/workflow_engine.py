@@ -9,6 +9,7 @@ import json
 import logging
 import subprocess
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -22,10 +23,12 @@ from devflow.adapters.base import (
     IssueState as AdapterIssueState,
     PlatformAdapter,
     PullRequest,
+    PullRequestState,
     Review,
     ReviewDecision
 )
 from devflow.agents.base import (
+    AgentCapability,
     AgentProvider,
     ImplementationContext,
     ImplementationResponse,
@@ -194,16 +197,29 @@ class WorkflowEngine:
             validation_results.append(f"✗ Platform validation error: {str(e)}")
             all_valid = False
 
-        # AI agent validation
+        # AI agent validation - check all available agents
         try:
-            claude_agent = self.agent_coordinator.get_agent("claude")
-            if claude_agent and claude_agent.validate_connection():
-                validation_results.append("✓ Claude agent connection")
-            else:
-                validation_results.append("✗ Claude agent not available")
+            if not self.agent_coordinator.agents:
+                validation_results.append("✗ No agents available")
                 all_valid = False
+            else:
+                agents_validated = 0
+                for agent_name, agent in self.agent_coordinator.agents.items():
+                    try:
+                        if agent.validate_connection():
+                            validation_results.append(f"✓ {agent.display_name} agent connection")
+                            agents_validated += 1
+                        else:
+                            validation_results.append(f"✗ {agent.display_name} agent not available")
+                    except Exception as e:
+                        validation_results.append(f"✗ {agent.display_name} agent error: {str(e)}")
+
+                if agents_validated == 0:
+                    all_valid = False
+
         except Exception as e:
             validation_results.append(f"✗ Agent validation error: {str(e)}")
+            all_valid = False
 
         # Git environment validation
         try:
@@ -319,7 +335,6 @@ class WorkflowEngine:
             ) from e
 
         # Create new session
-        from datetime import datetime
         now = datetime.now().isoformat()
 
         session = WorkflowSession(

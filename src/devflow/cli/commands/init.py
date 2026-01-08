@@ -3,8 +3,7 @@
 from pathlib import Path
 from typing import Optional
 
-from devflow.adapters.base import PlatformAdapter
-from devflow.core.config import ProjectConfig, ProjectMaturity
+from devflow.core.config import ProjectConfig, ProjectMaturity, PlatformConfig
 from devflow.exceptions import ConfigurationError, ValidationError
 
 
@@ -63,7 +62,6 @@ def initialize_project(
         repo_name = None
 
     # Create configuration
-    from devflow.adapters.base import PlatformConfig
 
     config = ProjectConfig(
         project_name=project_name,

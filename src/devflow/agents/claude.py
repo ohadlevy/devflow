@@ -1,0 +1,795 @@
+"""Claude AI Agent Provider.
+
+This module provides Claude Code and Claude API integration for DevFlow,
+preserving the sophisticated patterns from the original embedded system.
+"""
+
+import json
+import logging
+import subprocess
+from typing import Any, Dict, List
+
+from devflow.agents.base import (
+    AgentCapability,
+    AgentProvider,
+    ImplementationContext,
+    ImplementationResponse,
+    ImplementationResult,
+    ReviewContext,
+    ReviewResponse,
+    ReviewDecision,
+    ValidationContext,
+    ValidationResponse,
+    ValidationResult,
+    IssueSeverity
+)
+from devflow.exceptions import AgentError
+
+logger = logging.getLogger(__name__)
+
+
+class ClaudeAgentProvider(AgentProvider):
+    """Claude AI agent provider using Claude Code CLI.
+
+    Provides intelligent automation capabilities through Claude Code integration,
+    preserving the sophisticated prompting and context management from the
+    original embedded pipeline system.
+    """
+
+    def __init__(self, config: Dict[str, Any]) -> None:
+        """Initialize Claude agent provider.
+
+        Args:
+            config: Provider configuration
+
+        Raises:
+            AgentError: If configuration is invalid
+        """
+        # Set attributes first before calling super() which validates config
+        self.use_claude_cli = config.get("use_claude_cli", True)
+        self.api_key = config.get("api_key")
+        self.model = config.get("model", "claude-3.5-sonnet")
+
+        super().__init__(config)
+
+    @property
+    def name(self) -> str:
+        """Agent provider name."""
+        return "claude"
+
+    @property
+    def display_name(self) -> str:
+        """Human-readable provider name."""
+        return "Claude"
+
+    @property
+    def capabilities(self) -> List[AgentCapability]:
+        """List of capabilities this provider supports."""
+        return [
+            AgentCapability.VALIDATION,
+            AgentCapability.IMPLEMENTATION,
+            AgentCapability.REVIEW,
+            AgentCapability.ANALYSIS
+        ]
+
+    @property
+    def max_context_size(self) -> int:
+        """Maximum context size for this provider."""
+        return 200000  # Claude's context window
+
+    def _validate_config(self) -> None:
+        """Validate Claude-specific configuration."""
+        if self.use_claude_cli:
+            # Check if Claude Code CLI is available
+            try:
+                result = subprocess.run(
+                    ["claude", "--version"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10
+                )
+                if result.returncode != 0:
+                    raise AgentError(
+                        "Claude Code CLI not found. Install from: https://claude.com/claude-code",
+                        agent_type=self.name
+                    )
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                raise AgentError(
+                    "Claude Code CLI not available",
+                    agent_type=self.name
+                )
+        else:
+            if not self.api_key:
+                raise AgentError(
+                    "Claude API key required when not using Claude Code CLI",
+                    agent_type=self.name
+                )
+
+    def validate_connection(self) -> bool:
+        """Test connection to Claude service.
+
+        Returns:
+            True if connection is successful
+
+        Raises:
+            AgentError: If connection validation fails
+        """
+        if self.use_claude_cli:
+            try:
+                # Test basic Claude Code CLI functionality
+                result = subprocess.run(
+                    ["claude", "--help"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=10
+                )
+                return result.returncode == 0
+            except Exception as e:
+                raise AgentError(f"Claude CLI connection failed: {str(e)}") from e
+        else:
+            # TODO: Implement Claude API validation
+            logger.warning("Claude API validation not yet implemented")
+            return True
+
+    def _run_claude_command(
+        self,
+        prompt: str,
+        context_files: List[str] = None,
+        timeout: int = 300
+    ) -> str:
+        """Run Claude Code CLI command.
+
+        Args:
+            prompt: Prompt to send to Claude
+            context_files: Files to include as context
+            timeout: Command timeout
+
+        Returns:
+            Claude's response
+
+        Raises:
+            AgentError: If command fails
+        """
+        try:
+            args = ["claude"]
+
+            # Add context files
+            if context_files:
+                for file_path in context_files[:10]:  # Limit context files
+                    args.extend(["--file", file_path])
+
+            # Add prompt
+            args.append(prompt)
+
+            result = subprocess.run(
+                args,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=timeout
+            )
+
+            return result.stdout
+
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Claude command failed: {e.stderr or str(e)}"
+            raise AgentError(error_msg, agent_type=self.name) from e
+
+        except subprocess.TimeoutExpired as e:
+            raise AgentError(
+                f"Claude command timed out after {timeout}s",
+                agent_type=self.name
+            ) from e
+
+        except Exception as e:
+            raise AgentError(f"Claude execution failed: {str(e)}") from e
+
+    def _validate_issue_impl(self, context: ValidationContext) -> ValidationResponse:
+        """Implementation-specific issue validation."""
+        try:
+            # Build validation prompt based on the original sophisticated system
+            prompt = self._build_validation_prompt(context)
+
+            # Run Claude validation
+            if self.use_claude_cli:
+                context_files = self._get_context_files(context)
+                response_text = self._run_claude_command(prompt, context_files, timeout=180)
+            else:
+                # TODO: Implement Claude API call
+                response_text = "Validation not yet implemented for Claude API"
+
+            # Parse response (simplified - would need full JSON parsing in real implementation)
+            result = self._parse_validation_response(response_text, context)
+
+            confidence = self._calculate_confidence(response_text, "validation")
+
+            return ValidationResponse(
+                success=True,
+                message=response_text,
+                data={"raw_response": response_text},
+                result=result,
+                confidence=confidence,
+                reasoning="Claude analysis of issue requirements and feasibility"
+            )
+
+        except Exception as e:
+            return ValidationResponse(
+                success=False,
+                message=f"Validation failed: {str(e)}",
+                data={"error": str(e)},
+                result=ValidationResult.INVALID,
+                confidence=0.0
+            )
+
+    def _build_validation_prompt(self, context: ValidationContext) -> str:
+        """Build sophisticated validation prompt."""
+        issue = context.issue
+        maturity = context.maturity_level
+
+        prompt = f"""You are a senior software engineer validating this GitHub issue for automated implementation.
+
+# ISSUE ANALYSIS REQUEST
+
+## Issue Details
+**Issue #**: {issue.number}
+**Title**: {issue.title}
+**Author**: {issue.author}
+**Labels**: {', '.join(issue.labels) if issue.labels else 'None'}
+**Created**: {issue.created_at}
+
+## Description
+{issue.body}
+
+## Project Context
+- **Maturity Level**: {maturity}
+- **Previous Attempts**: {len(context.previous_attempts)}
+- **Quality Standards**: {"High" if maturity in ["stable", "mature"] else "Standard"}
+
+## Validation Requirements
+
+Analyze this issue for automated implementation readiness. Consider:
+
+### 1. Clarity & Scope
+- Is the problem statement clear and unambiguous?
+- Are acceptance criteria well-defined or derivable?
+- Is the scope appropriately bounded for automated implementation?
+
+### 2. Implementation Feasibility
+- Can this be implemented without human design decisions?
+- Are there clear technical approaches available?
+- Are dependencies and requirements obvious?
+
+### 3. Risk Assessment
+- What could go wrong during automated implementation?
+- Are there breaking change implications?
+- Security, performance, or compatibility concerns?
+
+### 4. Complexity Estimation
+Rate as SIMPLE/MEDIUM/COMPLEX based on:
+- Lines of code likely required
+- Number of files to modify
+- External dependencies needed
+- Testing complexity
+
+## Response Format
+
+Provide your assessment in this exact format:
+
+**VALIDATION**: [VALID | NEEDS_CLARIFICATION | INVALID]
+
+**COMPLEXITY**: [SIMPLE | MEDIUM | COMPLEX]
+
+**ANALYSIS**:
+[Your detailed technical analysis of the issue]
+
+**IMPLEMENTATION_APPROACH**:
+[Specific steps for implementation if valid]
+
+**QUESTIONS**:
+[Any clarifying questions if validation is NEEDS_CLARIFICATION]
+
+**RISKS**:
+[Potential implementation risks and mitigation strategies]
+
+**ESTIMATED_EFFORT**: [Number of files to change, key components to modify]
+
+Be thorough but concise. Focus on actionable technical details that would help an AI agent implement this successfully.
+"""
+        return prompt
+
+    def _parse_validation_response(
+        self,
+        response_text: str,
+        context: ValidationContext
+    ) -> ValidationResult:
+        """Parse Claude's validation response."""
+        # Look for structured decision markers
+        response_lower = response_text.lower()
+
+        # Check for explicit validation result
+        if "validation: valid" in response_lower or "result: valid" in response_lower:
+            return ValidationResult.VALID
+        elif ("validation: needs_clarification" in response_lower or
+              "needs clarification" in response_lower or
+              "unclear" in response_lower or
+              "ambiguous" in response_lower):
+            return ValidationResult.NEEDS_CLARIFICATION
+        elif ("validation: invalid" in response_lower or
+              "result: invalid" in response_lower or
+              "cannot implement" in response_lower or
+              "insufficient information" in response_lower):
+            return ValidationResult.INVALID
+
+        # Fallback: analyze content sentiment
+        positive_indicators = ["implementable", "clear", "well-defined", "straightforward"]
+        negative_indicators = ["unclear", "ambiguous", "missing", "incomplete", "complex"]
+
+        positive_count = sum(1 for indicator in positive_indicators if indicator in response_lower)
+        negative_count = sum(1 for indicator in negative_indicators if indicator in response_lower)
+
+        if positive_count > negative_count and positive_count > 0:
+            return ValidationResult.VALID
+        elif negative_count > positive_count:
+            return ValidationResult.NEEDS_CLARIFICATION
+        else:
+            return ValidationResult.NEEDS_CLARIFICATION  # Default to caution
+
+    def _implement_changes_impl(self, context: ImplementationContext) -> ImplementationResponse:
+        """Implementation-specific code changes."""
+        try:
+            # Build implementation prompt
+            prompt = self._build_implementation_prompt(context)
+
+            # Run Claude implementation
+            if self.use_claude_cli:
+                context_files = self._get_context_files(context)
+                response_text = self._run_claude_command(prompt, context_files, timeout=600)
+            else:
+                response_text = "Implementation not yet implemented for Claude API"
+
+            # Parse response for results
+            result = self._parse_implementation_response(response_text)
+
+            confidence = self._calculate_confidence(response_text, "implementation")
+
+            return ImplementationResponse(
+                success=True,
+                message=response_text,
+                data={"raw_response": response_text},
+                result=result,
+                confidence=confidence
+            )
+
+        except Exception as e:
+            return ImplementationResponse(
+                success=False,
+                message=f"Implementation failed: {str(e)}",
+                data={"error": str(e)},
+                result=ImplementationResult.FAILED,
+                confidence=0.0
+            )
+
+    def _build_implementation_prompt(self, context: ImplementationContext) -> str:
+        """Build implementation prompt."""
+        issue = context.issue
+        constraints = context.constraints
+        maturity = getattr(context, 'maturity_level', 'early_stage')
+
+        prompt = f"""You are an expert software developer implementing a GitHub issue automatically.
+
+# IMPLEMENTATION REQUEST
+
+## Issue Context
+**Issue #**: {issue.number}
+**Title**: {issue.title}
+**Description**: {issue.body}
+**Labels**: {', '.join(issue.labels) if issue.labels else 'None'}
+
+## Implementation Environment
+- **Working Directory**: {context.working_directory}
+- **Project Maturity**: {maturity}
+- **Max Iterations**: {constraints.get('max_iterations', 3)}
+- **Current Iteration**: {constraints.get('current_iteration', 1)}
+
+## Validation Results
+{context.validation_result if hasattr(context, 'validation_result') else 'No validation results available'}
+
+## Previous Attempts
+{len(context.previous_iterations)} previous implementation attempts have been made.
+{self._format_previous_attempts(context.previous_iterations)}
+
+## Implementation Requirements
+
+### Quality Standards (Based on {maturity} maturity)
+{"- Comprehensive testing required" if maturity in ["stable", "mature"] else "- Basic testing required"}
+{"- Documentation updates mandatory" if maturity in ["stable", "mature"] else "- Documentation updates recommended"}
+{"- Breaking changes forbidden" if maturity == "mature" else "- Breaking changes allowed with justification"}
+{"- Performance impact analysis required" if maturity in ["stable", "mature"] else "- Performance considerations noted"}
+
+### Implementation Guidelines
+1. **Code Changes**: Create/modify only necessary files
+2. **Testing**: Add appropriate tests for new functionality
+3. **Documentation**: Update relevant documentation
+4. **Convention**: Follow existing project patterns and style
+5. **Safety**: Avoid breaking changes unless explicitly required
+
+### Error Handling
+- Validate inputs at boundaries
+- Provide clear error messages
+- Handle edge cases appropriately
+- Log important events for debugging
+
+## Expected Response
+
+Implement the solution and provide a summary in this format:
+
+**IMPLEMENTATION**: [SUCCESS | PARTIAL | FAILED]
+
+**FILES_CHANGED**:
+- file1.py: [brief description of changes]
+- file2.py: [brief description of changes]
+
+**TESTS_ADDED**:
+- test_file1.py: [brief description of tests]
+
+**DOCUMENTATION_UPDATED**:
+- README.md: [description of changes]
+
+**VALIDATION**:
+[How to verify the implementation works]
+
+**REMAINING_WORK**:
+[Any follow-up tasks needed]
+
+Focus on creating a complete, working solution that passes all existing tests and adds appropriate new tests.
+"""
+        return prompt
+
+    def _format_previous_attempts(self, previous_iterations: List[Any]) -> str:
+        """Format previous implementation attempts for context."""
+        if not previous_iterations:
+            return "No previous attempts."
+
+        formatted = []
+        for i, attempt in enumerate(previous_iterations[:3], 1):  # Show last 3 attempts
+            attempt_info = getattr(attempt, 'summary', str(attempt)[:100])
+            formatted.append(f"Attempt {i}: {attempt_info}")
+
+        return "\n".join(formatted)
+
+    def _parse_implementation_response(self, response_text: str) -> ImplementationResult:
+        """Parse implementation response."""
+        response_lower = response_text.lower()
+
+        # Check for explicit status indicators
+        if ("implementation: success" in response_lower or
+            "status: success" in response_lower or
+            "implementation complete" in response_lower):
+            return ImplementationResult.SUCCESS
+        elif ("implementation: failed" in response_lower or
+              "status: failed" in response_lower or
+              "implementation failed" in response_lower):
+            return ImplementationResult.FAILED
+        elif ("implementation: partial" in response_lower or
+              "status: partial" in response_lower or
+              "partially implemented" in response_lower):
+            return ImplementationResult.PARTIAL
+
+        # Analyze implementation indicators
+        success_indicators = [
+            "created", "added", "implemented", "modified", "updated", "fixed",
+            "completed", "successful", "working", "tests pass"
+        ]
+        failure_indicators = [
+            "error", "failed", "exception", "cannot", "unable", "missing",
+            "broken", "syntax error", "import error", "tests fail"
+        ]
+        partial_indicators = [
+            "partial", "incomplete", "partially", "some issues", "work in progress",
+            "needs more", "additional work"
+        ]
+
+        success_count = sum(1 for indicator in success_indicators if indicator in response_lower)
+        failure_count = sum(1 for indicator in failure_indicators if indicator in response_lower)
+        partial_count = sum(1 for indicator in partial_indicators if indicator in response_lower)
+
+        # Determine result based on indicators
+        if failure_count > 0:
+            return ImplementationResult.FAILED
+        elif partial_count > 0 or (success_count > 0 and success_count < 3):
+            return ImplementationResult.PARTIAL
+        elif success_count >= 3:
+            return ImplementationResult.SUCCESS
+        else:
+            # Default based on response length and structure
+            if len(response_text) < 100:
+                return ImplementationResult.FAILED
+            else:
+                return ImplementationResult.PARTIAL
+
+    def _review_code_impl(self, context: ReviewContext) -> ReviewResponse:
+        """Implementation-specific code review."""
+        try:
+            # Build review prompt
+            prompt = self._build_review_prompt(context)
+
+            # Run Claude review
+            if self.use_claude_cli:
+                context_files = self._get_context_files(context)
+                response_text = self._run_claude_command(prompt, context_files, timeout=300)
+            else:
+                response_text = "Review not yet implemented for Claude API"
+
+            # Parse response
+            decision, severity = self._parse_review_response(response_text, context)
+
+            confidence = self._calculate_confidence(response_text, "review")
+
+            return ReviewResponse(
+                success=True,
+                message=response_text,
+                data={"raw_response": response_text},
+                decision=decision,
+                severity=severity,
+                confidence=confidence
+            )
+
+        except Exception as e:
+            return ReviewResponse(
+                success=False,
+                message=f"Review failed: {str(e)}",
+                data={"error": str(e)},
+                decision=ReviewDecision.COMMENT,
+                severity=IssueSeverity.INFO,
+                confidence=0.0
+            )
+
+    def _build_review_prompt(self, context: ReviewContext) -> str:
+        """Build code review prompt."""
+        pr = context.pull_request
+        maturity = context.maturity_level
+
+        prompt = f"""You are a senior code reviewer performing automated code review.
+
+# CODE REVIEW REQUEST
+
+## Pull Request Details
+**PR #**: {pr.number}
+**Title**: {pr.title}
+**Author**: {pr.author}
+**Source Branch**: {pr.source_branch}
+**Target Branch**: {pr.target_branch}
+
+## Description
+{pr.body}
+
+## Changed Files ({len(context.changed_files)} files)
+{chr(10).join([f"- {f.get('filename', 'unknown')} ({f.get('status', 'modified')})" for f in context.changed_files[:15]])}
+{f"... and {len(context.changed_files) - 15} more files" if len(context.changed_files) > 15 else ""}
+
+## Project Context
+- **Maturity Level**: {maturity}
+- **Review Focus**: {', '.join(context.review_focus)}
+- **Quality Standards**: {"Strict" if maturity in ["stable", "mature"] else "Standard"}
+
+## Review Criteria
+
+### Code Quality & Correctness
+- Is the implementation correct and complete?
+- Are edge cases properly handled?
+- Is error handling appropriate?
+- Does the code follow project conventions?
+
+### Security Assessment
+- Are there security vulnerabilities?
+- Is input validation adequate?
+- Are credentials or sensitive data properly handled?
+- Are dependencies secure?
+
+### Performance & Maintainability
+- Are there performance implications?
+- Is the code readable and maintainable?
+- Is the design appropriate for the change scope?
+- Are there code smells or anti-patterns?
+
+### Testing & Documentation
+{"- Are all changes covered by tests?" if maturity in ["stable", "mature"] else "- Are critical paths tested?"}
+{"- Is documentation updated for public APIs?" if maturity in ["stable", "mature"] else "- Is basic documentation present?"}
+- Are test cases comprehensive?
+- Are comments clear and necessary?
+
+## Maturity-Specific Standards
+
+{self._get_maturity_standards(maturity)}
+
+## Response Format
+
+Provide your review in this exact format:
+
+**DECISION**: [APPROVE | REQUEST_CHANGES | COMMENT]
+
+**SEVERITY**: [CRITICAL | HIGH | MEDIUM | LOW | INFO]
+
+**SUMMARY**:
+[Brief overall assessment of the pull request]
+
+**DETAILED_FEEDBACK**:
+[Comprehensive technical review with specific file references]
+
+**SECURITY_CONCERNS**:
+[Any security issues identified or "None identified"]
+
+**PERFORMANCE_IMPACT**:
+[Performance implications or "No significant impact"]
+
+**TESTING_ASSESSMENT**:
+[Quality and completeness of tests]
+
+**SPECIFIC_ISSUES**:
+{self._get_issue_template()}
+
+**RECOMMENDATIONS**:
+[Actionable suggestions for improvement]
+
+Be thorough but constructive. Focus on maintainability, security, and correctness.
+"""
+        return prompt
+
+    def _get_maturity_standards(self, maturity: str) -> str:
+        """Get maturity-specific review standards."""
+        standards = {
+            "prototype": "- Focus on functionality over perfection\n- Allow experimental patterns\n- Basic error handling sufficient",
+            "early_stage": "- Require good error handling\n- Encourage best practices\n- Moderate test coverage expected",
+            "stable": "- Strict adherence to conventions\n- Comprehensive testing required\n- Breaking changes need justification",
+            "mature": "- Zero tolerance for regressions\n- Comprehensive documentation required\n- Performance impact analysis mandatory"
+        }
+        return standards.get(maturity, standards["early_stage"])
+
+    def _get_issue_template(self) -> str:
+        """Get template for listing specific issues."""
+        return """File: [filename]
+Line: [line number]
+Issue: [description]
+Severity: [CRITICAL/HIGH/MEDIUM/LOW]
+Suggestion: [how to fix]
+
+[Repeat for each issue found, or write "No significant issues found"]"""
+
+    def _parse_review_response(
+        self,
+        response_text: str,
+        context: ReviewContext
+    ) -> tuple[ReviewDecision, IssueSeverity]:
+        """Parse review response."""
+        response_lower = response_text.lower()
+
+        # Parse decision
+        decision = ReviewDecision.COMMENT  # default
+        if ("decision: approve" in response_lower or
+            "approve" in response_lower and "lgtm" in response_lower):
+            decision = ReviewDecision.APPROVE
+        elif ("decision: request_changes" in response_lower or
+              "request changes" in response_lower or
+              "needs changes" in response_lower or
+              "must fix" in response_lower):
+            decision = ReviewDecision.REQUEST_CHANGES
+        elif ("decision: comment" in response_lower or
+              "minor issues" in response_lower or
+              "suggestions" in response_lower):
+            decision = ReviewDecision.COMMENT
+
+        # Parse severity - look for explicit markers first
+        severity = IssueSeverity.INFO  # default
+        if ("severity: critical" in response_lower or
+            "critical" in response_lower and ("bug" in response_lower or "security" in response_lower)):
+            severity = IssueSeverity.CRITICAL
+        elif ("severity: high" in response_lower or
+              ("high" in response_lower and "priority" in response_lower) or
+              "breaking change" in response_lower):
+            severity = IssueSeverity.HIGH
+        elif ("severity: medium" in response_lower or
+              ("medium" in response_lower and "priority" in response_lower) or
+              "performance" in response_lower or "maintainability" in response_lower):
+            severity = IssueSeverity.MEDIUM
+        elif ("severity: low" in response_lower or
+              ("low" in response_lower and "priority" in response_lower) or
+              "style" in response_lower or "formatting" in response_lower):
+            severity = IssueSeverity.LOW
+
+        # Auto-determine severity based on decision if not explicit
+        if decision == ReviewDecision.REQUEST_CHANGES and severity == IssueSeverity.INFO:
+            # If requesting changes but no explicit severity, infer from keywords
+            critical_keywords = ["security", "vulnerability", "crash", "data loss"]
+            high_keywords = ["bug", "error", "exception", "breaking"]
+            medium_keywords = ["performance", "memory", "logic"]
+
+            if any(keyword in response_lower for keyword in critical_keywords):
+                severity = IssueSeverity.CRITICAL
+            elif any(keyword in response_lower for keyword in high_keywords):
+                severity = IssueSeverity.HIGH
+            elif any(keyword in response_lower for keyword in medium_keywords):
+                severity = IssueSeverity.MEDIUM
+            else:
+                severity = IssueSeverity.LOW
+
+        return decision, severity
+
+    def _calculate_confidence(self, response_text: str, operation_type: str) -> float:
+        """Calculate confidence score for Claude's response."""
+        confidence = 0.5  # Base confidence
+
+        response_lower = response_text.lower()
+
+        # Check response structure and completeness
+        if len(response_text) > 200:
+            confidence += 0.1
+        if len(response_text) > 500:
+            confidence += 0.1
+
+        # Look for structured response indicators
+        if operation_type == "validation":
+            structure_indicators = ["validation:", "analysis:", "complexity:", "implementation_approach:"]
+        elif operation_type == "implementation":
+            structure_indicators = ["implementation:", "files_changed:", "tests_added:", "validation:"]
+        elif operation_type == "review":
+            structure_indicators = ["decision:", "severity:", "summary:", "detailed_feedback:"]
+        else:
+            structure_indicators = []
+
+        structure_score = sum(1 for indicator in structure_indicators if indicator in response_lower)
+        confidence += min(structure_score * 0.05, 0.2)
+
+        # Check for certainty language
+        certain_phrases = ["clear", "definite", "obvious", "straightforward", "certain"]
+        uncertain_phrases = ["might", "maybe", "unclear", "unsure", "possibly", "probably"]
+
+        certain_count = sum(1 for phrase in certain_phrases if phrase in response_lower)
+        uncertain_count = sum(1 for phrase in uncertain_phrases if phrase in response_lower)
+
+        confidence += min(certain_count * 0.02, 0.1)
+        confidence -= min(uncertain_count * 0.02, 0.1)
+
+        # Check for technical detail level
+        technical_terms = ["function", "method", "class", "import", "test", "file", "error", "exception"]
+        technical_count = sum(1 for term in technical_terms if term in response_lower)
+        confidence += min(technical_count * 0.01, 0.1)
+
+        # Ensure confidence is within bounds
+        return max(0.1, min(confidence, 0.95))
+
+    def _get_context_files(self, context) -> List[str]:
+        """Get relevant context files for Claude command."""
+        context_files = []
+
+        # Add configuration files
+        config_files = ["devflow.yaml", "pyproject.toml", "setup.py", "requirements.txt"]
+        for config_file in config_files:
+            try:
+                from pathlib import Path
+                if Path(config_file).exists():
+                    context_files.append(config_file)
+            except Exception:
+                pass
+
+        # Add relevant source files based on context
+        if hasattr(context, 'issue') and context.issue:
+            # Try to infer relevant files from issue description
+            issue_text = f"{context.issue.title} {context.issue.body}".lower()
+
+            # Look for file mentions
+            import re
+            file_patterns = [
+                r'(\w+\.py)',
+                r'(\w+/\w+\.py)',
+                r'(src/\w+/\w+\.py)',
+                r'(tests/\w+\.py)'
+            ]
+
+            for pattern in file_patterns:
+                matches = re.findall(pattern, issue_text)
+                context_files.extend(matches[:3])  # Limit to first 3 matches
+
+        # Limit total context files to avoid overwhelming Claude
+        return context_files[:10]

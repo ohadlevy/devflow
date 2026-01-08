@@ -1,0 +1,8 @@
+project_name: devflow
+project_root: /home/olevy/claude/devflow
+maturity_level: early_stage
+platforms:
+  primary: github
+  issue_tracking: github
+  git_provider: github
+repo_name: devflow

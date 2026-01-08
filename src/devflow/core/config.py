@@ -194,6 +194,7 @@ class AgentConfig(BaseModel):
     review_sources: List[str] = Field(default_factory=lambda: ["claude"], description="Review agent sources")
     timeout: int = Field(default=600, ge=30, le=3600, description="Agent timeout in seconds")
     max_iterations: int = Field(default=3, ge=1, le=10, description="Maximum agent iterations")
+    claude_model: str = Field(default="claude-3.5-sonnet", description="Claude model to use")
 
     @validator('review_sources')
     def validate_review_sources(cls, v):

@@ -146,7 +146,7 @@ class AgentResponse:
 @dataclass
 class ValidationResponse(AgentResponse):
     """Response from issue validation."""
-    result: ValidationResult
+    result: ValidationResult = ValidationResult.INVALID
     clarifications_needed: List[str] = None
     estimated_complexity: Optional[str] = None
     suggested_labels: List[str] = None
@@ -162,7 +162,7 @@ class ValidationResponse(AgentResponse):
 @dataclass
 class ImplementationResponse(AgentResponse):
     """Response from code implementation."""
-    result: ImplementationResult
+    result: ImplementationResult = ImplementationResult.FAILED
     files_changed: List[str] = None
     commits_made: List[str] = None
     tests_added: bool = False
@@ -182,8 +182,8 @@ class ImplementationResponse(AgentResponse):
 @dataclass
 class ReviewResponse(AgentResponse):
     """Response from code review."""
-    decision: ReviewDecision
-    severity: IssueSeverity
+    decision: ReviewDecision = ReviewDecision.COMMENT
+    severity: IssueSeverity = IssueSeverity.INFO
     issues_found: List[Dict[str, Any]] = None
     suggestions_made: List[Dict[str, Any]] = None
     security_concerns: List[Dict[str, Any]] = None
