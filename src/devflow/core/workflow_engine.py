@@ -759,23 +759,56 @@ class WorkflowEngine:
             }
 
         try:
-            # Generate branch name
+            # Generate branch name (based on original pipeline patterns)
             branch_name = f"issue-{session.issue_number}"
 
-            # TODO: Implement actual Git worktree creation via GitProvider
-            # For now, simulate the process
-            console.print(f"Creating worktree for branch: {branch_name}")
+            # Determine worktree path (similar to original but for DevFlow)
+            worktree_path = Path(f"/tmp/devflow-worktree-{session.issue_number}")
+
+            # Remove existing worktree if it exists
+            if worktree_path.exists():
+                console.print(f"[yellow]⚠ Worktree exists, cleaning up: {worktree_path}[/yellow]")
+                subprocess.run(
+                    ["git", "worktree", "remove", "--force", str(worktree_path)],
+                    cwd=self.config.project_root,
+                    capture_output=True,
+                    text=True,
+                    check=False  # Don't fail if worktree doesn't exist in git
+                )
+                # Force remove directory if still exists
+                import shutil
+                if worktree_path.exists():
+                    shutil.rmtree(worktree_path, ignore_errors=True)
+
+            console.print(f"Creating worktree at {worktree_path} with branch {branch_name}")
+
+            # Create git worktree (based on original pipeline's approach)
+            result = subprocess.run(
+                ["git", "worktree", "add", str(worktree_path), "-b", branch_name, self.config.base_branch],
+                cwd=self.config.project_root,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+
+            # Symlink venv if it exists (for pre-commit hooks like original)
+            main_venv = self.config.project_root / "venv"
+            worktree_venv = worktree_path / "venv"
+            if main_venv.exists() and not worktree_venv.exists():
+                import os
+                os.symlink(main_venv, worktree_venv)
+                console.print(f"[blue]🔗 Symlinked venv from main repository[/blue]")
 
             # Update session with worktree info
             session.branch_name = branch_name
-            session.worktree_path = Path(f"/tmp/devflow-worktree-{session.issue_number}")
+            session.worktree_path = worktree_path
 
-            console.print(f"[green]✓ Worktree created at: {session.worktree_path}[/green]")
+            console.print(f"[green]✓ Worktree created at: {worktree_path}[/green]")
 
             return {
                 'success': True,
                 'next_state': WorkflowState.IMPLEMENTING.value,
-                'worktree_path': str(session.worktree_path),
+                'worktree_path': str(worktree_path),
                 'branch_name': branch_name
             }
 
