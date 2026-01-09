@@ -530,13 +530,13 @@ class ProjectConfig(BaseModel):
             "require_migration_guide": preset.require_migration_guide,
 
             # Platform settings
-            "platforms": self.platforms.dict(),
+            "platforms": self.platforms.model_dump(),
 
             # Agent settings
-            "agents": self.agents.dict(),
+            "agents": self.agents.model_dump(),
 
             # Workflow settings
-            "workflows": self.workflows.dict(),
+            "workflows": self.workflows.model_dump(),
 
             # Repository settings
             "repo_owner": self.repo_owner,

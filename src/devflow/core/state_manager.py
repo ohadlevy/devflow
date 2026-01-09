@@ -12,7 +12,7 @@ from threading import Lock
 from typing import Any, Dict, List, Optional, Union
 
 from platformdirs import user_data_dir
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from devflow.core.config import ProjectConfig
 from devflow.core.workflow_engine import WorkflowSession, WorkflowState
@@ -61,7 +61,8 @@ class WorkflowHistory(BaseModel):
     error: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
-    @validator('timestamp')
+    @field_validator('timestamp')
+    @classmethod
     def validate_timestamp(cls, v):
         """Validate timestamp format."""
         try:

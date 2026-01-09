@@ -874,6 +874,24 @@ class WorkflowEngine:
 
             console.print(f"Creating worktree at {worktree_path} with branch {branch_name}")
 
+            # Check if branch already exists and delete it if so (fix for CI failure)
+            branch_check = subprocess.run(
+                ["git", "branch", "--list", branch_name],
+                cwd=self.config.project_root,
+                capture_output=True,
+                text=True
+            )
+
+            if branch_check.stdout.strip():
+                console.print(f"[yellow]⚠ Branch {branch_name} exists, deleting it[/yellow]")
+                subprocess.run(
+                    ["git", "branch", "-D", branch_name],
+                    cwd=self.config.project_root,
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+
             # Create git worktree (based on original pipeline's approach)
             result = subprocess.run(
                 ["git", "worktree", "add", str(worktree_path), "-b", branch_name, self.config.base_branch],
