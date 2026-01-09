@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import yaml
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from platformdirs import user_config_dir
 
 from devflow.exceptions import ConfigurationError, ValidationError
@@ -170,7 +170,8 @@ class PlatformConfig(BaseModel):
     issue_tracking: Optional[str] = Field(None, description="Issue tracking platform")
     git_provider: Optional[str] = Field(None, description="Git hosting provider")
 
-    @validator('primary')
+    @field_validator('primary')
+    @classmethod
     def validate_primary_platform(cls, v):
         """Validate primary platform."""
         supported_platforms = ["github", "gitlab", "bitbucket"]
@@ -196,7 +197,8 @@ class AgentConfig(BaseModel):
     max_iterations: int = Field(default=3, ge=1, le=10, description="Maximum agent iterations")
     claude_model: str = Field(default="claude-3.5-sonnet", description="Claude model to use")
 
-    @validator('review_sources')
+    @field_validator('review_sources')
+    @classmethod
     def validate_review_sources(cls, v):
         """Validate review sources."""
         if not v:
@@ -221,7 +223,8 @@ class WorkflowConfig(BaseModel):
     human_override_detection: bool = Field(default=True, description="Detect human reviewer interventions")
     followup_issue_creation: bool = Field(default=True, description="Create follow-up issues for tech debt")
 
-    @validator('commit_strategy')
+    @field_validator('commit_strategy')
+    @classmethod
     def validate_commit_strategy(cls, v):
         """Validate commit strategy."""
         valid_strategies = ["squash", "rebase", "merge"]
@@ -266,11 +269,11 @@ class ProjectConfig(BaseModel):
     state_file_path: Optional[Path] = Field(None, description="Custom state file path")
     log_level: str = Field(default="INFO", description="Logging level")
 
-    class Config:
-        """Pydantic configuration."""
-        use_enum_values = True
-        validate_assignment = True
-        extra = "forbid"
+    model_config = ConfigDict(
+        use_enum_values=True,
+        validate_assignment=True,
+        extra="forbid"
+    )
 
     def __init__(self, **kwargs):
         """Initialize project configuration with validation."""
