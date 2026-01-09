@@ -643,7 +643,7 @@ Issues to fix:
         """Apply fixes using Claude AI agent."""
         try:
             # Import here to avoid circular imports
-            from devflow.agents.claude import ClaudeAgent
+            from devflow.agents.claude import ClaudeAgentProvider
 
             # Create agent instance with auto-fix configuration
             agent_config = {
@@ -652,7 +652,7 @@ Issues to fix:
                 "temperature": 0.1,  # Lower temperature for more consistent fixes
             }
 
-            claude_agent = ClaudeAgent(agent_config)
+            claude_agent = ClaudeAgentProvider(agent_config)
 
             # Create implementation context for fixes
             from devflow.agents.base import ImplementationContext

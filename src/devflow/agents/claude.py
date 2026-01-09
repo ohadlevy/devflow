@@ -538,7 +538,21 @@ Be thorough but concise. Focus on actionable technical details that would help a
         constraints = context.constraints
         maturity = getattr(context, 'maturity_level', 'early_stage')
 
-        prompt = f"""You are an expert software developer implementing a GitHub issue automatically.
+        # Check if this is auto-fix mode
+        is_auto_fix = context.project_context.get('auto_fix_mode', False)
+
+        if is_auto_fix:
+            prompt = f"""You are an expert software developer applying auto-fixes based on CI failures and review feedback.
+
+# AUTO-FIX IMPLEMENTATION REQUEST
+
+## Auto-Fix Context
+**Mode**: Automated issue fixing
+**Fix Prompt**: {context.project_context.get('fix_prompt', 'Apply necessary fixes')}
+**Feedback Items**: {len(context.project_context.get('feedback_items', []))} items to fix"""
+
+        else:
+            prompt = f"""You are an expert software developer implementing a GitHub issue automatically.
 
 # IMPLEMENTATION REQUEST
 
@@ -559,7 +573,10 @@ Be thorough but concise. Focus on actionable technical details that would help a
 
 ## Previous Attempts
 {len(context.previous_iterations)} previous implementation attempts have been made.
-{self._format_previous_attempts(context.previous_iterations)}
+{self._format_previous_attempts(context.previous_iterations)}"""
+
+        # Add shared implementation requirements
+        prompt += f"""
 
 ## Implementation Requirements
 
