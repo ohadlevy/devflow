@@ -174,8 +174,15 @@ class MockAgentCoordinator:
 @pytest.fixture
 def temp_project_root():
     """Create temporary project directory."""
+    import subprocess
+
     with tempfile.TemporaryDirectory() as temp_dir:
         project_root = Path(temp_dir)
+
+        # Initialize git repository (THIS WAS MISSING!)
+        subprocess.run(['git', 'init'], cwd=project_root, check=True, capture_output=True)
+        subprocess.run(['git', 'config', 'user.email', 'test@devflow.com'], cwd=project_root, check=True)
+        subprocess.run(['git', 'config', 'user.name', 'DevFlow Test'], cwd=project_root, check=True)
 
         # Create basic project structure
         (project_root / "src").mkdir()
@@ -197,6 +204,11 @@ workflows:
   validation_requires_approval: false
   implementation_max_iterations: 3
 """)
+
+        # Create initial commit (required for git worktree)
+        subprocess.run(['git', 'add', '.'], cwd=project_root, check=True, capture_output=True)
+        subprocess.run(['git', 'commit', '-m', 'Initial test commit'], cwd=project_root, check=True, capture_output=True)
+        subprocess.run(['git', 'branch', '-M', 'master'], cwd=project_root, check=True, capture_output=True)
 
         yield project_root
 
