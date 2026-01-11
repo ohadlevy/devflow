@@ -9,10 +9,10 @@ from rich.console import Console
 from rich.table import Table
 
 from devflow.adapters.github.client import GitHubPlatformAdapter
-from devflow.agents.claude import ClaudeAgent
+from devflow.agents.claude import ClaudeAgentProvider
 from devflow.core.auto_fix import AutoFixEngine
 from devflow.core.config import ProjectConfig
-from devflow.exceptions import ConfigError, PlatformError
+from devflow.exceptions import ConfigurationError, PlatformError
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -298,13 +298,13 @@ def status(pr_number: int, working_dir: str):
         # Group by type and priority
         grouped = {}
         for item in feedback_items:
-            key = f"{item.type.value}_{item.priority.value}"
+            key = f"{item.type.value}|{item.priority.value}"
             if key not in grouped:
                 grouped[key] = []
             grouped[key].append(item)
 
         for group_key, items in grouped.items():
-            type_val, priority_val = group_key.split('_')
+            type_val, priority_val = group_key.split('|')
             console.print(f"\n[bold]{type_val.title()} - {priority_val.title()} Priority ({len(items)} items):[/bold]")
 
             for item in items:
@@ -328,7 +328,7 @@ def _load_config(working_dir: str) -> ProjectConfig:
     config_file = project_root / "devflow.yaml"
 
     if not config_file.exists():
-        raise ConfigError(f"DevFlow configuration not found: {config_file}")
+        raise ConfigurationError(f"DevFlow configuration not found: {config_file}")
 
     return ProjectConfig.from_file(config_file)
 
@@ -361,7 +361,7 @@ def _create_auto_fix_engine(
         "temperature": 0.1
     }
 
-    claude_agent = ClaudeAgent(agent_config)
+    claude_agent = ClaudeAgentProvider(agent_config)
 
     return AutoFixEngine(
         platform_adapter=platform_adapter,

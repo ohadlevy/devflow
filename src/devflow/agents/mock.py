@@ -40,13 +40,19 @@ class MockAgentProvider(AgentProvider):
         # Set attributes first
         self.mock_mode = config.get("mock_mode", True)
         self.simulate_failures = config.get("simulate_failures", False)
+        self._name = "mock"  # Make name settable for testing
 
         super().__init__(config)
 
     @property
     def name(self) -> str:
         """Agent provider name."""
-        return "mock"
+        return self._name
+
+    @name.setter
+    def name(self, value: str) -> None:
+        """Set agent provider name (for testing)."""
+        self._name = value
 
     @property
     def display_name(self) -> str:
@@ -272,3 +278,24 @@ This is a mock review for testing purposes."""
             "summary": "Mock documentation generation completed",
             "mock": True
         }
+
+    def _validate_issue_stream_impl(self, context):
+        """Implementation-specific issue validation with streaming progress."""
+        from typing import Generator
+        from devflow.agents.base import ValidationResponse, ValidationResult
+
+        # Simulate streaming validation progress
+        yield "🔍 Starting mock validation..."
+        yield "📖 Reading issue requirements..."
+        yield "⚙️ Analyzing feasibility..."
+        yield "✅ Mock validation complete"
+
+        # Return mock validation response
+        return ValidationResponse(
+            success=True,
+            message="Mock validation completed successfully",
+            data={"mock": True},
+            result=ValidationResult.VALID,
+            confidence=0.95,
+            reasoning="Mock agent validation for testing"
+        )

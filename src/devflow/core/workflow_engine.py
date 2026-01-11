@@ -242,7 +242,7 @@ class WorkflowEngine:
             validation_results.append(f"✗ Agent validation error: {str(e)}")
             all_valid = False
 
-        # Git environment validation
+        # Git environment validation with comprehensive error handling
         try:
             result = subprocess.run(
                 ['git', '--version'],
@@ -253,10 +253,21 @@ class WorkflowEngine:
             if result.returncode == 0:
                 validation_results.append("✓ Git available")
             else:
-                validation_results.append("✗ Git not available")
+                validation_results.append(f"✗ Git not available (exit code: {result.returncode})")
+                if result.stderr:
+                    logger.debug(f"Git version check stderr: {result.stderr}")
                 all_valid = False
-        except Exception:
+        except subprocess.TimeoutExpired:
+            validation_results.append("✗ Git validation timed out")
+            logger.error("Git version check timed out after 10 seconds")
+            all_valid = False
+        except FileNotFoundError:
+            validation_results.append("✗ Git command not found")
+            logger.error("Git executable not found in PATH")
+            all_valid = False
+        except Exception as e:
             validation_results.append("✗ Git validation failed")
+            logger.error(f"Unexpected error during git validation: {e}")
             all_valid = False
 
         # Display results
@@ -403,24 +414,40 @@ class WorkflowEngine:
         try:
             branch_name = f"issue-{issue_number}"
 
-            # Check if branch exists locally or remotely
-            result = subprocess.run(
-                ["git", "show-ref", f"refs/heads/{branch_name}", f"refs/remotes/origin/{branch_name}"],
-                capture_output=True,
-                text=True,
-                cwd=self.config.project_root,
-                check=False
-            )
-
-            if result.returncode == 0:
-                # Branch exists - check if it has implementation commits
-                commit_result = subprocess.run(
-                    ["git", "log", "--oneline", f"{branch_name}", "--", "src/"],
+            # Check if branch exists locally or remotely with enhanced error handling
+            try:
+                result = subprocess.run(
+                    ["git", "show-ref", f"refs/heads/{branch_name}", f"refs/remotes/origin/{branch_name}"],
                     capture_output=True,
                     text=True,
                     cwd=self.config.project_root,
-                    check=False
+                    check=False,
+                    timeout=30
                 )
+            except subprocess.TimeoutExpired:
+                logger.warning(f"Git show-ref timed out for branch {branch_name}")
+                return None
+            except FileNotFoundError:
+                logger.error("Git executable not found during branch detection")
+                return None
+
+            if result.returncode == 0:
+                # Branch exists - check if it has implementation commits
+                try:
+                    commit_result = subprocess.run(
+                        ["git", "log", "--oneline", f"{branch_name}", "--", "src/"],
+                        capture_output=True,
+                        text=True,
+                        cwd=self.config.project_root,
+                        check=False,
+                        timeout=30
+                    )
+                except subprocess.TimeoutExpired:
+                    logger.warning(f"Git log timed out for branch {branch_name}")
+                    return None
+                except FileNotFoundError:
+                    logger.error("Git executable not found during commit check")
+                    return None
 
                 if commit_result.returncode == 0 and commit_result.stdout.strip():
                     # Has implementation commits - should be in review
@@ -647,9 +674,29 @@ class WorkflowEngine:
                 previous_attempts=context.previous_iterations
             )
 
-            # Run validation
+            # Run validation with streaming progress
             console.print("Running AI validation...")
-            validation_response = validator.validate_issue(validation_context)
+
+            # Use streaming validation if available, otherwise fall back to regular
+            if hasattr(validator, 'validate_issue_stream'):
+                validation_generator = validator.validate_issue_stream(validation_context)
+                full_response = ""
+
+                # Stream progress updates
+                for progress_message in validation_generator:
+                    if isinstance(progress_message, str):
+                        # Display progress message with Rich styling
+                        console.print(f"  {progress_message}", style="dim")
+                    else:
+                        # This is the final ValidationResponse
+                        validation_response = progress_message
+                        break
+                else:
+                    # Generator completed without returning response (shouldn't happen)
+                    raise AgentError("Validation stream completed without response")
+            else:
+                # Fallback to non-streaming validation
+                validation_response = validator.validate_issue(validation_context)
 
             # Store validation transcript
             session.session_transcript += f"\n=== VALIDATION ===\n{validation_response.message}\n"
@@ -853,6 +900,24 @@ class WorkflowEngine:
                     shutil.rmtree(worktree_path, ignore_errors=True)
 
             console.print(f"Creating worktree at {worktree_path} with branch {branch_name}")
+
+            # Check if branch already exists and delete it if so (fix for CI failure)
+            branch_check = subprocess.run(
+                ["git", "branch", "--list", branch_name],
+                cwd=self.config.project_root,
+                capture_output=True,
+                text=True
+            )
+
+            if branch_check.stdout.strip():
+                console.print(f"[yellow]⚠ Branch {branch_name} exists, deleting it[/yellow]")
+                subprocess.run(
+                    ["git", "branch", "-D", branch_name],
+                    cwd=self.config.project_root,
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
 
             # Create git worktree (based on original pipeline's approach)
             result = subprocess.run(

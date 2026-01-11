@@ -811,6 +811,48 @@ def autofix_status(
 
 
 @cli.command()
+@click.argument('pr_number', type=int)
+@click.option(
+    '--max-cycles',
+    default=10,
+    help='Maximum monitoring cycles',
+    show_default=True
+)
+@click.option(
+    '--working-dir',
+    type=click.Path(exists=True, file_okay=False),
+    default='.',
+    help='Working directory (default: current directory)'
+)
+@click.pass_context
+def monitor(
+    ctx: click.Context,
+    pr_number: int,
+    max_cycles: int,
+    working_dir: str
+) -> None:
+    """Start continuous monitoring for a specific PR.
+
+    This command starts the continuous monitoring system that:
+    - Watches CI status continuously
+    - Applies auto-fixes when CI fails
+    - Posts validation status when complete
+    - Marks as ready-for-human when all tests pass
+
+    Examples:
+        devflow monitor 8
+        devflow monitor 8 --max-cycles 5
+    """
+    from devflow.cli.commands.monitor import pr as monitor_pr_cmd
+
+    try:
+        monitor_pr_cmd.callback(pr_number, max_cycles, working_dir)
+    except Exception as e:
+        handle_error(e, ctx.obj.get('debug', False))
+        raise click.ClickException("Continuous monitoring failed")
+
+
+@cli.command()
 @click.pass_context
 def presets(ctx: click.Context) -> None:
     """Show available maturity level presets.

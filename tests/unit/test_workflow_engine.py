@@ -397,6 +397,143 @@ class TestWorkflowEngine:
         assert result["success"] is False
         assert "Platform error" in result["error"]
 
+    @patch('devflow.core.workflow_engine.console')
+    def test_validation_stage_streaming_progress(self, mock_console, workflow_engine, mock_issue):
+        """Test validation stage with streaming progress indicators."""
+        # Create session and context objects
+        from devflow.core.workflow_engine import WorkflowSession, WorkflowState
+        from devflow.agents.base import WorkflowContext
+        from datetime import datetime
+
+        session = WorkflowSession(
+            issue_id="test-issue-123",
+            issue_number=123,
+            current_state=WorkflowState.VALIDATING,
+            iteration_count=0,
+            max_iterations=3,
+            worktree_path=None,
+            branch_name=None,
+            pr_number=None,
+            session_transcript="",
+            context_data={},
+            created_at=datetime.now(),
+            updated_at=datetime.now()
+        )
+
+        context = WorkflowContext(
+            project_name="test-project",
+            repository_url="https://github.com/test/repo",
+            base_branch="main",
+            working_directory="/tmp/test",
+            issue=mock_issue,
+            maturity_level="early_stage"
+        )
+
+        # Mock agent coordinator to return an agent with streaming capability
+        mock_agent = Mock()
+        mock_agent.validate_issue_stream.return_value = iter([
+            "🔍 Starting issue analysis...",
+            "📖 Reading project context and issue details...",
+            "💭 Analyzing requirements... (10 lines processed)",
+            "🎯 Evaluating issue requirements...",
+            "⚙️ Assessing implementation feasibility...",
+            "✅ Analysis complete, processing results...",
+            "🎉 Validation passed - issue is ready for implementation",
+            ValidationResponse(
+                success=True,
+                message="Validation completed successfully",
+                data={},
+                result=ValidationResult.VALID,
+                confidence=0.9
+            )
+        ])
+
+        workflow_engine.agent_coordinator.select_best_agent.return_value = mock_agent
+        workflow_engine.platform_adapter.add_labels_to_issue = Mock()
+
+        # Run validation stage
+        result = workflow_engine._stage_validation(session, context, auto_mode=False, dry_run=False)
+
+        # Verify that streaming messages were printed
+        mock_console.print.assert_any_call("Running AI validation...")
+        mock_console.print.assert_any_call("  🔍 Starting issue analysis...", style="dim")
+        mock_console.print.assert_any_call("  📖 Reading project context and issue details...", style="dim")
+        mock_console.print.assert_any_call("  💭 Analyzing requirements... (10 lines processed)", style="dim")
+        mock_console.print.assert_any_call("  🎯 Evaluating issue requirements...", style="dim")
+        mock_console.print.assert_any_call("  ⚙️ Assessing implementation feasibility...", style="dim")
+        mock_console.print.assert_any_call("  ✅ Analysis complete, processing results...", style="dim")
+        mock_console.print.assert_any_call("  🎉 Validation passed - issue is ready for implementation", style="dim")
+
+        # Verify final validation success message
+        mock_console.print.assert_any_call("[green]✓ Issue validation passed[/green]")
+
+        # Verify result
+        assert result['success'] is True
+        assert result['next_state'] == WorkflowState.AWAITING_APPROVAL.value
+
+    @patch('devflow.core.workflow_engine.console')
+    def test_validation_stage_fallback_to_non_streaming(self, mock_console, workflow_engine, mock_issue):
+        """Test validation stage fallback to non-streaming when streaming not available."""
+        # Create session and context objects
+        from devflow.core.workflow_engine import WorkflowSession, WorkflowState
+        from devflow.agents.base import WorkflowContext
+        from datetime import datetime
+
+        session = WorkflowSession(
+            issue_id="test-issue-123",
+            issue_number=123,
+            current_state=WorkflowState.VALIDATING,
+            iteration_count=0,
+            max_iterations=3,
+            worktree_path=None,
+            branch_name=None,
+            pr_number=None,
+            session_transcript="",
+            context_data={},
+            created_at=datetime.now(),
+            updated_at=datetime.now()
+        )
+
+        context = WorkflowContext(
+            project_name="test-project",
+            repository_url="https://github.com/test/repo",
+            base_branch="main",
+            working_directory="/tmp/test",
+            issue=mock_issue,
+            maturity_level="early_stage"
+        )
+
+        # Mock agent coordinator to return an agent WITHOUT streaming capability
+        mock_agent = Mock()
+        # Remove the streaming method to simulate older agent
+        delattr(mock_agent, 'validate_issue_stream') if hasattr(mock_agent, 'validate_issue_stream') else None
+
+        mock_agent.validate_issue.return_value = ValidationResponse(
+            success=True,
+            message="Validation completed successfully",
+            data={},
+            result=ValidationResult.VALID,
+            confidence=0.9
+        )
+
+        workflow_engine.agent_coordinator.select_best_agent.return_value = mock_agent
+        workflow_engine.platform_adapter.add_labels_to_issue = Mock()
+
+        # Run validation stage
+        result = workflow_engine._stage_validation(session, context, auto_mode=False, dry_run=False)
+
+        # Verify that regular validation was used (no streaming messages)
+        mock_console.print.assert_any_call("Running AI validation...")
+        mock_console.print.assert_any_call("[green]✓ Issue validation passed[/green]")
+
+        # Should not have any streaming progress messages
+        streaming_calls = [call for call in mock_console.print.call_args_list
+                          if len(call[0]) > 0 and call[0][0].startswith("  ")]
+        assert len(streaming_calls) == 0
+
+        # Verify result
+        assert result['success'] is True
+
 
 class TestWorkflowSession:
     """Test WorkflowSession data model."""
