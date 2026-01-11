@@ -856,22 +856,26 @@ Issues to fix:
             # Import subprocess for git operations
             import subprocess
 
-            # Add all modified files to git
+            # Add all modified files to git with timeout and enhanced error handling
+            # This operation stages files for commit and should always succeed for valid files
             add_result = subprocess.run(
                 ['git', 'add'] + fix_result.files_modified,
                 cwd=self.working_directory,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                timeout=60  # Allow time for large files
             )
 
             # Check if there are actually changes to commit
+            # This ensures we don't create empty commits
             status_result = subprocess.run(
                 ['git', 'status', '--porcelain'],
                 cwd=self.working_directory,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                timeout=30
             )
 
             if not status_result.stdout.strip():
@@ -879,17 +883,22 @@ Issues to fix:
                 return True
 
             # Commit the changes
+            # This operation creates a local commit and should always succeed after staging
             commit_result = subprocess.run(
                 ['git', 'commit', '-m', fix_result.commit_message],
                 cwd=self.working_directory,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                timeout=60
             )
 
             logger.info(f"Committed auto-fixes: {commit_result.stdout.strip()}")
 
             # Push the changes to remote
+            # Note: Push failure is handled differently from other git operations
+            # We allow push to fail (e.g., network issues, authentication) without failing the entire operation
+            # since the local commit has succeeded and can be pushed manually later
             try:
                 # Get current branch name
                 branch_result = subprocess.run(
@@ -897,27 +906,34 @@ Issues to fix:
                     cwd=self.working_directory,
                     capture_output=True,
                     text=True,
-                    check=True
+                    check=True,
+                    timeout=30
                 )
                 current_branch = branch_result.stdout.strip()
 
-                # Push to remote
+                # Push to remote with network timeout
+                # This may fail due to network issues, authentication problems, or conflicts
                 push_result = subprocess.run(
                     ['git', 'push', 'origin', current_branch],
                     cwd=self.working_directory,
                     capture_output=True,
                     text=True,
-                    check=True
+                    check=True,
+                    timeout=120  # Allow more time for network operations
                 )
 
                 logger.info(f"Pushed auto-fixes to {current_branch}: {push_result.stdout.strip()}")
                 return True
 
+            except subprocess.TimeoutExpired:
+                # Push timed out - commit succeeded but network operation failed
+                logger.warning("Failed to push auto-fixes (timeout - commit succeeded): Push operation timed out")
+                return True  # Still return True since commit worked
             except subprocess.CalledProcessError as push_error:
-                # Push failed but commit succeeded
+                # Push failed but commit succeeded - this is expected in some scenarios
+                # Examples: authentication issues, network problems, merge conflicts
                 logger.warning(f"Failed to push auto-fixes (commit succeeded): {push_error.stderr}")
-                # Still return True since the commit worked
-                return True
+                return True  # Still return True since the commit worked
 
         except subprocess.CalledProcessError as e:
             logger.error(f"Git operation failed: {e.stderr}")

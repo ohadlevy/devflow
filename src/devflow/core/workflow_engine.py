@@ -242,7 +242,7 @@ class WorkflowEngine:
             validation_results.append(f"✗ Agent validation error: {str(e)}")
             all_valid = False
 
-        # Git environment validation
+        # Git environment validation with comprehensive error handling
         try:
             result = subprocess.run(
                 ['git', '--version'],
@@ -253,10 +253,21 @@ class WorkflowEngine:
             if result.returncode == 0:
                 validation_results.append("✓ Git available")
             else:
-                validation_results.append("✗ Git not available")
+                validation_results.append(f"✗ Git not available (exit code: {result.returncode})")
+                if result.stderr:
+                    logger.debug(f"Git version check stderr: {result.stderr}")
                 all_valid = False
-        except Exception:
+        except subprocess.TimeoutExpired:
+            validation_results.append("✗ Git validation timed out")
+            logger.error("Git version check timed out after 10 seconds")
+            all_valid = False
+        except FileNotFoundError:
+            validation_results.append("✗ Git command not found")
+            logger.error("Git executable not found in PATH")
+            all_valid = False
+        except Exception as e:
             validation_results.append("✗ Git validation failed")
+            logger.error(f"Unexpected error during git validation: {e}")
             all_valid = False
 
         # Display results
@@ -403,24 +414,40 @@ class WorkflowEngine:
         try:
             branch_name = f"issue-{issue_number}"
 
-            # Check if branch exists locally or remotely
-            result = subprocess.run(
-                ["git", "show-ref", f"refs/heads/{branch_name}", f"refs/remotes/origin/{branch_name}"],
-                capture_output=True,
-                text=True,
-                cwd=self.config.project_root,
-                check=False
-            )
-
-            if result.returncode == 0:
-                # Branch exists - check if it has implementation commits
-                commit_result = subprocess.run(
-                    ["git", "log", "--oneline", f"{branch_name}", "--", "src/"],
+            # Check if branch exists locally or remotely with enhanced error handling
+            try:
+                result = subprocess.run(
+                    ["git", "show-ref", f"refs/heads/{branch_name}", f"refs/remotes/origin/{branch_name}"],
                     capture_output=True,
                     text=True,
                     cwd=self.config.project_root,
-                    check=False
+                    check=False,
+                    timeout=30
                 )
+            except subprocess.TimeoutExpired:
+                logger.warning(f"Git show-ref timed out for branch {branch_name}")
+                return None
+            except FileNotFoundError:
+                logger.error("Git executable not found during branch detection")
+                return None
+
+            if result.returncode == 0:
+                # Branch exists - check if it has implementation commits
+                try:
+                    commit_result = subprocess.run(
+                        ["git", "log", "--oneline", f"{branch_name}", "--", "src/"],
+                        capture_output=True,
+                        text=True,
+                        cwd=self.config.project_root,
+                        check=False,
+                        timeout=30
+                    )
+                except subprocess.TimeoutExpired:
+                    logger.warning(f"Git log timed out for branch {branch_name}")
+                    return None
+                except FileNotFoundError:
+                    logger.error("Git executable not found during commit check")
+                    return None
 
                 if commit_result.returncode == 0 and commit_result.stdout.strip():
                     # Has implementation commits - should be in review

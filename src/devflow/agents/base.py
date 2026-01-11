@@ -299,19 +299,36 @@ class AgentProvider(ABC):
         return self._validate_issue_impl(context)
 
     def validate_issue_stream(self, context: ValidationContext) -> Generator[str, None, ValidationResponse]:
-        """Validate an issue for implementation readiness with streaming progress.
+        """Validate an issue for implementation readiness with streaming progress indicators.
+
+        This method provides real-time progress updates during the validation process,
+        allowing users to see what's happening during potentially long-running operations.
+        The streaming pattern yields progress messages throughout execution and returns
+        the final validation result.
 
         Args:
-            context: Validation context
+            context: Validation context containing issue details, project information,
+                    and other required data for validation
 
         Yields:
-            Progress messages during validation
+            str: Progress messages during validation (e.g., "🔍 Analyzing requirements...",
+                "📖 Reading project context...", "✅ Validation complete")
 
         Returns:
-            Final validation response
+            ValidationResponse: Final validation response containing success status,
+                              validation result (VALID, INVALID, NEEDS_CLARIFICATION),
+                              confidence score, and detailed reasoning
 
         Raises:
-            AgentError: If validation fails
+            AgentError: If validation fails due to agent configuration issues,
+                       missing capabilities, or unexpected errors during validation
+
+        Example:
+            >>> validation_generator = agent.validate_issue_stream(context)
+            >>> for progress_message in validation_generator:
+            ...     if isinstance(progress_message, str):
+            ...         print(f"Progress: {progress_message}")
+            >>> # Generator exhaustion returns the ValidationResponse
         """
         if not self.supports_capability(AgentCapability.VALIDATION):
             raise AgentError(
@@ -422,16 +439,48 @@ class AgentProvider(ABC):
 
     @abstractmethod
     def _validate_issue_stream_impl(self, context: ValidationContext) -> Generator[str, None, ValidationResponse]:
-        """Implementation-specific issue validation with streaming progress.
+        """Implementation-specific issue validation with streaming progress indicators.
+
+        This abstract method must be implemented by concrete agent classes to provide
+        validation logic with real-time progress updates. Implementations should:
+
+        1. Yield descriptive progress messages throughout the validation process
+        2. Handle errors gracefully and yield error messages before raising exceptions
+        3. Use emojis and clear language for user-friendly progress updates
+        4. Return a comprehensive ValidationResponse upon completion
 
         Args:
-            context: Validation context
+            context: ValidationContext containing:
+                    - issue: Issue details (title, body, labels, etc.)
+                    - project_info: Project context and configuration
+                    - additional metadata for validation
 
         Yields:
-            Progress messages during validation
+            str: User-friendly progress messages with emojis and descriptive text
+                Examples:
+                - "🔍 Starting issue analysis..."
+                - "📖 Reading project context and issue details..."
+                - "💭 Analyzing requirements... (50 lines processed)"
+                - "⚙️ Assessing implementation feasibility..."
+                - "🧪 Checking testability and validation criteria..."
+                - "✅ Analysis complete, processing results..."
+                - "❌ Validation error: <error message>"
 
         Returns:
-            Final validation response
+            ValidationResponse: Comprehensive validation result containing:
+                              - success: Boolean indicating overall success
+                              - message: Detailed validation summary
+                              - result: ValidationResult enum (VALID, INVALID, NEEDS_CLARIFICATION)
+                              - confidence: Float between 0.0 and 1.0
+                              - reasoning: Detailed explanation of the validation decision
+                              - data: Additional metadata (e.g., raw AI response)
+
+        Implementation Guidelines:
+            - Use try-catch blocks around subprocess calls and external API calls
+            - Yield progress messages every 10-20 lines of processing for long operations
+            - Include context-specific progress indicators (e.g., file count, analysis depth)
+            - Handle timeouts and network errors gracefully
+            - Provide meaningful error messages in both progress yields and final response
         """
         pass
 
