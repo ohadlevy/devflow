@@ -76,7 +76,10 @@ class TestGitHubPlatformAdapter:
         )
         mock_run.assert_any_call(
             ["gh", "repo", "view", "test-owner/test-repo", "--json", "name"],
-            capture_output=True, text=True, check=False, timeout=30
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
         )
 
     @patch("subprocess.run")
