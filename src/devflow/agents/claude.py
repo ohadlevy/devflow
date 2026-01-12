@@ -300,6 +300,7 @@ class ClaudeAgentProvider(AgentProvider):
                 data={"raw_response": response_text},
                 result=result,
                 confidence=confidence,
+                suggested_labels=self._extract_suggested_labels(response_text),
                 reasoning="Claude analysis of issue requirements and feasibility"
             )
 
@@ -312,7 +313,7 @@ class ClaudeAgentProvider(AgentProvider):
                 confidence=0.0
             )
 
-    def _validate_issue_stream_impl(self, context: ValidationContext) -> Generator[str, None, ValidationResponse]:
+    def _validate_issue_stream_impl(self, context: ValidationContext) -> Generator[str, None, None]:
         """Implementation-specific issue validation with streaming progress."""
         try:
             # Build validation prompt based on the original sophisticated system
@@ -365,7 +366,8 @@ class ClaudeAgentProvider(AgentProvider):
             else:
                 yield "❌ Issue validation failed"
 
-            return ValidationResponse(
+            # Yield the final response instead of returning it so tests can access it
+            yield ValidationResponse(
                 success=True,
                 message=full_response,
                 data={"raw_response": full_response},
@@ -376,7 +378,8 @@ class ClaudeAgentProvider(AgentProvider):
 
         except Exception as e:
             yield f"❌ Validation error: {str(e)}"
-            return ValidationResponse(
+            # Yield the error response instead of returning it
+            yield ValidationResponse(
                 success=False,
                 message=f"Validation failed: {str(e)}",
                 data={"error": str(e)},
@@ -971,3 +974,21 @@ Suggestion: [how to fix]
 
         # Limit total context files to avoid overwhelming Claude
         return context_files[:10]
+    # Test compatibility methods
+    def _call_claude_code(self, prompt: str, **kwargs) -> str:
+        """Test compatibility wrapper around _run_claude_command."""
+        return self._run_claude_command(prompt)
+
+    def _extract_suggested_labels(self, response_text: str) -> List[str]:
+        """Extract suggested labels from the response text."""
+        import re
+        labels = []
+        
+        # Look for "Labels:" followed by comma-separated labels
+        labels_match = re.search(r'labels:\s*([^\n]+)', response_text.lower())
+        if labels_match:
+            labels_text = labels_match.group(1).strip()
+            # Split by comma and clean up
+            labels = [label.strip() for label in labels_text.split(',') if label.strip()]
+        
+        return labels
