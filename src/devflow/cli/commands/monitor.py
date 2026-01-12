@@ -1,15 +1,16 @@
 """Continuous PR monitoring CLI commands."""
 
-import click
 import logging
 from pathlib import Path
+
+import click
 from rich.console import Console
 
-from devflow.core.continuous_monitor import ContinuousPRMonitor
-from devflow.core.auto_fix import AutoFixEngine
 from devflow.adapters.github.client import GitHubPlatformAdapter
 from devflow.agents.claude import ClaudeAgentProvider
+from devflow.core.auto_fix import AutoFixEngine
 from devflow.core.config import ProjectConfig
+from devflow.core.continuous_monitor import ContinuousPRMonitor
 from devflow.exceptions import ConfigurationError, PlatformError
 
 console = Console()
@@ -23,18 +24,13 @@ def monitor():
 
 
 @monitor.command()
-@click.argument('pr_number', type=int)
+@click.argument("pr_number", type=int)
+@click.option("--max-cycles", default=10, help="Maximum monitoring cycles", show_default=True)
 @click.option(
-    '--max-cycles',
-    default=10,
-    help='Maximum monitoring cycles',
-    show_default=True
-)
-@click.option(
-    '--working-dir',
+    "--working-dir",
     type=click.Path(exists=True, file_okay=False),
-    default='.',
-    help='Working directory (default: current directory)'
+    default=".",
+    help="Working directory (default: current directory)",
 )
 def pr(pr_number: int, max_cycles: int, working_dir: str):
     """Start continuous monitoring for a specific PR.
@@ -50,7 +46,9 @@ def pr(pr_number: int, max_cycles: int, working_dir: str):
         devflow monitor pr 8 --max-cycles 5
     """
     try:
-        console.print(f"[bold blue]🔍 Starting continuous monitoring for PR #{pr_number}[/bold blue]")
+        console.print(
+            f"[bold blue]🔍 Starting continuous monitoring for PR #{pr_number}[/bold blue]"
+        )
 
         # Load configuration
         config = _load_config(working_dir)
@@ -61,9 +59,7 @@ def pr(pr_number: int, max_cycles: int, working_dir: str):
 
         # Create continuous monitor
         monitor_system = ContinuousPRMonitor(
-            platform_adapter=platform_adapter,
-            auto_fix_engine=auto_fix_engine,
-            check_interval=300
+            platform_adapter=platform_adapter, auto_fix_engine=auto_fix_engine, check_interval=300
         )
 
         # Start monitoring
@@ -82,14 +78,14 @@ def pr(pr_number: int, max_cycles: int, working_dir: str):
             console.print(f"\n[cyan]{cycle_name.replace('_', ' ').title()}:[/cyan]")
 
             for pr_num, pr_result in cycle_results.items():
-                status = pr_result.get('status', 'unknown')
+                status = pr_result.get("status", "unknown")
 
-                if status == 'ready_for_human':
+                if status == "ready_for_human":
                     console.print(f"  PR #{pr_num}: [green]✅ Ready for human review[/green]")
-                elif status == 'auto_fix_applied':
-                    fixes = len(pr_result.get('fixes_applied', []))
+                elif status == "auto_fix_applied":
+                    fixes = len(pr_result.get("fixes_applied", []))
                     console.print(f"  PR #{pr_num}: [yellow]🔧 Applied {fixes} auto-fixes[/yellow]")
-                elif status == 'needs_human_intervention':
+                elif status == "needs_human_intervention":
                     console.print(f"  PR #{pr_num}: [red]⚠️ Needs human intervention[/red]")
                 else:
                     console.print(f"  PR #{pr_num}: [blue]ℹ️ {status}[/blue]")
@@ -114,10 +110,7 @@ def _load_config(working_dir: str) -> ProjectConfig:
 
 def _create_platform_adapter(config: ProjectConfig) -> GitHubPlatformAdapter:
     """Create and validate platform adapter."""
-    adapter_config = {
-        "repo_owner": config.repo_owner,
-        "repo_name": config.repo_name
-    }
+    adapter_config = {"repo_owner": config.repo_owner, "repo_name": config.repo_name}
 
     adapter = GitHubPlatformAdapter(adapter_config)
 
@@ -128,24 +121,18 @@ def _create_platform_adapter(config: ProjectConfig) -> GitHubPlatformAdapter:
 
 
 def _create_auto_fix_engine(
-    platform_adapter: GitHubPlatformAdapter,
-    config: ProjectConfig,
-    working_dir: str
+    platform_adapter: GitHubPlatformAdapter, config: ProjectConfig, working_dir: str
 ) -> AutoFixEngine:
     """Create auto-fix engine with proper configuration."""
     # Use real Claude agent for production monitoring
     from devflow.agents.claude import ClaudeAgentProvider
 
-    agent_config = {
-        "model": config.agents.claude_model,
-        "max_tokens": 4000,
-        "temperature": 0.1
-    }
+    agent_config = {"model": config.agents.claude_model, "max_tokens": 4000, "temperature": 0.1}
 
     claude_agent = ClaudeAgentProvider(agent_config)
 
     return AutoFixEngine(
         platform_adapter=platform_adapter,
         agent_provider=claude_agent,
-        working_directory=working_dir
+        working_directory=working_dir,
     )

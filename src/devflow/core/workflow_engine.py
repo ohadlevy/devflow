@@ -8,12 +8,12 @@ embedded pipeline system.
 import json
 import logging
 import subprocess
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+
 if TYPE_CHECKING:
     from devflow.core.state_manager import StateManager
 
@@ -23,12 +23,14 @@ from rich.table import Table
 
 from devflow.adapters.base import (
     Issue,
-    IssueState as AdapterIssueState,
+)
+from devflow.adapters.base import IssueState as AdapterIssueState
+from devflow.adapters.base import (
     PlatformAdapter,
     PullRequest,
     PullRequestState,
     Review,
-    ReviewDecision
+    ReviewDecision,
 )
 from devflow.agents.base import (
     AgentCapability,
@@ -42,17 +44,11 @@ from devflow.agents.base import (
     ValidationContext,
     ValidationResponse,
     ValidationResult,
-    WorkflowContext
+    WorkflowContext,
 )
-from devflow.core.config import ProjectConfig
 from devflow.core.auto_fix import AutoFixEngine
-from devflow.exceptions import (
-    AgentError,
-    PlatformError,
-    StateError,
-    ValidationError,
-    WorkflowError
-)
+from devflow.core.config import ProjectConfig
+from devflow.exceptions import AgentError, PlatformError, StateError, ValidationError, WorkflowError
 
 # Rich console for beautiful output
 console = Console()
@@ -63,6 +59,7 @@ logger = logging.getLogger(__name__)
 
 class WorkflowState(str, Enum):
     """Workflow states for issue processing."""
+
     PENDING = "pending"
     VALIDATING = "validating"
     AWAITING_APPROVAL = "awaiting_approval"
@@ -89,6 +86,7 @@ class WorkflowState(str, Enum):
 @dataclass
 class WorkflowSession:
     """Represents a workflow processing session."""
+
     issue_id: str
     issue_number: int
     current_state: WorkflowState
@@ -105,36 +103,36 @@ class WorkflowSession:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
-            'issue_id': self.issue_id,
-            'issue_number': self.issue_number,
-            'current_state': self.current_state.value,
-            'iteration_count': self.iteration_count,
-            'max_iterations': self.max_iterations,
-            'worktree_path': str(self.worktree_path) if self.worktree_path else None,
-            'branch_name': self.branch_name,
-            'pr_number': self.pr_number,
-            'session_transcript': self.session_transcript,
-            'context_data': self.context_data,
-            'created_at': self.created_at,
-            'updated_at': self.updated_at
+            "issue_id": self.issue_id,
+            "issue_number": self.issue_number,
+            "current_state": self.current_state.value,
+            "iteration_count": self.iteration_count,
+            "max_iterations": self.max_iterations,
+            "worktree_path": str(self.worktree_path) if self.worktree_path else None,
+            "branch_name": self.branch_name,
+            "pr_number": self.pr_number,
+            "session_transcript": self.session_transcript,
+            "context_data": self.context_data,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'WorkflowSession':
+    def from_dict(cls, data: Dict[str, Any]) -> "WorkflowSession":
         """Create from dictionary."""
         return cls(
-            issue_id=data['issue_id'],
-            issue_number=data['issue_number'],
-            current_state=WorkflowState(data['current_state']),
-            iteration_count=data['iteration_count'],
-            max_iterations=data['max_iterations'],
-            worktree_path=Path(data['worktree_path']) if data.get('worktree_path') else None,
-            branch_name=data.get('branch_name'),
-            pr_number=data.get('pr_number'),
-            session_transcript=data.get('session_transcript', ''),
-            context_data=data.get('context_data', {}),
-            created_at=data['created_at'],
-            updated_at=data['updated_at']
+            issue_id=data["issue_id"],
+            issue_number=data["issue_number"],
+            current_state=WorkflowState(data["current_state"]),
+            iteration_count=data["iteration_count"],
+            max_iterations=data["max_iterations"],
+            worktree_path=Path(data["worktree_path"]) if data.get("worktree_path") else None,
+            branch_name=data.get("branch_name"),
+            pr_number=data.get("pr_number"),
+            session_transcript=data.get("session_transcript", ""),
+            context_data=data.get("context_data", {}),
+            created_at=data["created_at"],
+            updated_at=data["updated_at"],
         )
 
 
@@ -151,8 +149,8 @@ class WorkflowEngine:
         config: ProjectConfig,
         platform_adapter: PlatformAdapter,
         agent_coordinator: MultiAgentCoordinator,
-        state_manager: Optional['StateManager'] = None,
-        enable_auto_fix: bool = True
+        state_manager: Optional["StateManager"] = None,
+        enable_auto_fix: bool = True,
     ) -> None:
         """Initialize the workflow engine.
 
@@ -179,9 +177,9 @@ class WorkflowEngine:
                     platform_adapter=platform_adapter,
                     agent_provider=agent_coordinator.select_best_agent(
                         capability=AgentCapability.IMPLEMENTATION,
-                        preferences=[config.agents.primary]
+                        preferences=[config.agents.primary],
                     ),
-                    working_directory=str(config.project_root)
+                    working_directory=str(config.project_root),
                 )
                 console.print("[blue]🔧 Auto-fix system initialized[/blue]")
             except Exception as e:
@@ -248,10 +246,7 @@ class WorkflowEngine:
         # Git environment validation with comprehensive error handling
         try:
             result = subprocess.run(
-                ['git', '--version'],
-                capture_output=True,
-                text=True,
-                timeout=10
+                ["git", "--version"], capture_output=True, text=True, timeout=10
             )
             if result.returncode == 0:
                 validation_results.append("✓ Git available")
@@ -287,10 +282,7 @@ class WorkflowEngine:
         return all_valid
 
     def process_issue(
-        self,
-        issue_number: int,
-        auto_mode: bool = False,
-        dry_run: bool = False
+        self, issue_number: int, auto_mode: bool = False, dry_run: bool = False
     ) -> Dict[str, Any]:
         """Process an issue through the complete workflow.
 
@@ -310,7 +302,7 @@ class WorkflowEngine:
             if not self.validate_environment():
                 raise WorkflowError(
                     "Environment validation failed - fix issues before proceeding",
-                    workflow_id=f"issue-{issue_number}"
+                    workflow_id=f"issue-{issue_number}",
                 )
 
         console.print(f"\n[bold blue]Processing issue #{issue_number}[/bold blue]")
@@ -335,7 +327,7 @@ class WorkflowEngine:
             logger.error(f"Workflow processing failed for issue #{issue_number}: {str(e)}")
             raise WorkflowError(
                 f"Failed to process issue #{issue_number}: {str(e)}",
-                workflow_id=f"issue-{issue_number}"
+                workflow_id=f"issue-{issue_number}",
             ) from e
 
     def _get_or_create_session(self, issue_number: int) -> WorkflowSession:
@@ -363,14 +355,11 @@ class WorkflowEngine:
         # Fetch issue from platform
         try:
             issue = self.platform_adapter.get_issue(
-                self.config.repo_owner,
-                self.config.repo_name,
-                issue_number
+                self.config.repo_owner, self.config.repo_name, issue_number
             )
         except Exception as e:
             raise PlatformError(
-                f"Failed to fetch issue #{issue_number}",
-                platform=self.platform_adapter.name
+                f"Failed to fetch issue #{issue_number}", platform=self.platform_adapter.name
             ) from e
 
         # Create new session
@@ -390,13 +379,13 @@ class WorkflowEngine:
             pr_number=None,
             session_transcript="",
             context_data={
-                'issue_title': issue.title,
-                'issue_body': issue.body,
-                'issue_labels': issue.labels,
-                'issue_url': issue.url
+                "issue_title": issue.title,
+                "issue_body": issue.body,
+                "issue_labels": issue.labels,
+                "issue_url": issue.url,
             },
             created_at=now,
-            updated_at=now
+            updated_at=now,
         )
 
         # Save session
@@ -420,12 +409,17 @@ class WorkflowEngine:
             # Check if branch exists locally or remotely with enhanced error handling
             try:
                 result = subprocess.run(
-                    ["git", "show-ref", f"refs/heads/{branch_name}", f"refs/remotes/origin/{branch_name}"],
+                    [
+                        "git",
+                        "show-ref",
+                        f"refs/heads/{branch_name}",
+                        f"refs/remotes/origin/{branch_name}",
+                    ],
                     capture_output=True,
                     text=True,
                     cwd=self.config.project_root,
                     check=False,
-                    timeout=30
+                    timeout=30,
                 )
             except subprocess.TimeoutExpired:
                 logger.warning(f"Git show-ref timed out for branch {branch_name}")
@@ -443,7 +437,7 @@ class WorkflowEngine:
                         text=True,
                         cwd=self.config.project_root,
                         check=False,
-                        timeout=30
+                        timeout=30,
                     )
                 except subprocess.TimeoutExpired:
                     logger.warning(f"Git log timed out for branch {branch_name}")
@@ -454,11 +448,15 @@ class WorkflowEngine:
 
                 if commit_result.returncode == 0 and commit_result.stdout.strip():
                     # Has implementation commits - should be in review
-                    console.print(f"[blue]🔍 Detected existing implementation for issue #{issue_number} - continuing to review[/blue]")
+                    console.print(
+                        f"[blue]🔍 Detected existing implementation for issue #{issue_number} - continuing to review[/blue]"
+                    )
                     return WorkflowState.IMPLEMENTED
                 else:
                     # Branch exists but no implementation commits
-                    console.print(f"[yellow]⚠ Branch exists but no implementation found for issue #{issue_number}[/yellow]")
+                    console.print(
+                        f"[yellow]⚠ Branch exists but no implementation found for issue #{issue_number}[/yellow]"
+                    )
                     return WorkflowState.VALIDATED
 
         except Exception as e:
@@ -479,24 +477,28 @@ class WorkflowEngine:
             project_name=self.config.project_name,
             repository_url=f"https://github.com/{self.config.repo_owner}/{self.config.repo_name}",
             base_branch=self.config.base_branch,
-            working_directory=str(session.worktree_path) if session.worktree_path else str(self.config.project_root),
+            working_directory=(
+                str(session.worktree_path)
+                if session.worktree_path
+                else str(self.config.project_root)
+            ),
             issue=Issue(
                 id=session.issue_id,
                 number=session.issue_number,
-                title=session.context_data.get('issue_title', ''),
-                body=session.context_data.get('issue_body', ''),
+                title=session.context_data.get("issue_title", ""),
+                body=session.context_data.get("issue_body", ""),
                 state=AdapterIssueState.OPEN,  # Assume open for processing
-                labels=session.context_data.get('issue_labels', []),
+                labels=session.context_data.get("issue_labels", []),
                 assignees=[],  # TODO: Get from session data
-                author='',  # TODO: Get from session data
+                author="",  # TODO: Get from session data
                 created_at=session.created_at,  # TODO: Parse datetime
                 updated_at=session.updated_at,  # TODO: Parse datetime
-                url=session.context_data.get('issue_url', ''),
-                platform_data=session.context_data
+                url=session.context_data.get("issue_url", ""),
+                platform_data=session.context_data,
             ),
             previous_iterations=self._get_previous_iterations(session),
             maturity_level=self.config.maturity_level,
-            custom_settings=self.config.get_effective_settings()
+            custom_settings=self.config.get_effective_settings(),
         )
 
     def _get_previous_iterations(self, session: WorkflowSession) -> List[Dict[str, Any]]:
@@ -512,11 +514,7 @@ class WorkflowEngine:
         return []
 
     def _execute_workflow(
-        self,
-        session: WorkflowSession,
-        context: WorkflowContext,
-        auto_mode: bool,
-        dry_run: bool
+        self, session: WorkflowSession, context: WorkflowContext, auto_mode: bool, dry_run: bool
     ) -> Dict[str, Any]:
         """Execute workflow stages based on current state.
 
@@ -530,13 +528,13 @@ class WorkflowEngine:
             Execution results
         """
         result = {
-            'success': False,
-            'session_id': session.issue_id,
-            'issue_number': session.issue_number,
-            'stages_completed': [],
-            'current_state': session.current_state.value,
-            'error': None,
-            'pull_request': None
+            "success": False,
+            "session_id": session.issue_id,
+            "issue_number": session.issue_number,
+            "stages_completed": [],
+            "current_state": session.current_state.value,
+            "error": None,
+            "pull_request": None,
         }
 
         try:
@@ -550,25 +548,25 @@ class WorkflowEngine:
                     WorkflowState.MERGED,
                     WorkflowState.MAX_ITERATIONS_REACHED,
                     WorkflowState.NEEDS_HUMAN_INTERVENTION,
-                    WorkflowState.READY_FOR_HUMAN
+                    WorkflowState.READY_FOR_HUMAN,
                 ]:
                     break
 
                 # Execute stage
                 stage_result = self._execute_stage(session, context, auto_mode, dry_run)
 
-                if stage_result['success']:
-                    result['stages_completed'].append(session.current_state.value)
+                if stage_result["success"]:
+                    result["stages_completed"].append(session.current_state.value)
 
                     # Update session state
-                    if stage_result.get('next_state'):
-                        session.current_state = WorkflowState(stage_result['next_state'])
+                    if stage_result.get("next_state"):
+                        session.current_state = WorkflowState(stage_result["next_state"])
                         session.updated_at = datetime.now().isoformat()
 
                         if self.state_manager:
                             self.state_manager.save_workflow_session(session)
                 else:
-                    result['error'] = stage_result.get('error')
+                    result["error"] = stage_result.get("error")
                     break
 
                 # In interactive mode, ask for continuation
@@ -577,26 +575,22 @@ class WorkflowEngine:
                         break
 
             # Final result
-            result['success'] = session.current_state in [
+            result["success"] = session.current_state in [
                 WorkflowState.COMPLETED,
                 WorkflowState.MERGED,
-                WorkflowState.READY_FOR_HUMAN
+                WorkflowState.READY_FOR_HUMAN,
             ]
-            result['current_state'] = session.current_state.value
+            result["current_state"] = session.current_state.value
 
             return result
 
         except Exception as e:
-            result['error'] = str(e)
+            result["error"] = str(e)
             logger.error(f"Workflow execution failed: {str(e)}")
             return result
 
     def _execute_stage(
-        self,
-        session: WorkflowSession,
-        context: WorkflowContext,
-        auto_mode: bool,
-        dry_run: bool
+        self, session: WorkflowSession, context: WorkflowContext, auto_mode: bool, dry_run: bool
     ) -> Dict[str, Any]:
         """Execute a specific workflow stage.
 
@@ -622,18 +616,14 @@ class WorkflowEngine:
         handler = stage_handlers.get(session.current_state)
         if not handler:
             return {
-                'success': False,
-                'error': f"No handler for stage: {session.current_state.value}"
+                "success": False,
+                "error": f"No handler for stage: {session.current_state.value}",
             }
 
         return handler(session, context, auto_mode, dry_run)
 
     def _stage_validation(
-        self,
-        session: WorkflowSession,
-        context: WorkflowContext,
-        auto_mode: bool,
-        dry_run: bool
+        self, session: WorkflowSession, context: WorkflowContext, auto_mode: bool, dry_run: bool
     ) -> Dict[str, Any]:
         """Execute validation stage.
 
@@ -650,16 +640,15 @@ class WorkflowEngine:
 
         if dry_run:
             return {
-                'success': True,
-                'next_state': WorkflowState.VALIDATED.value,
-                'validation_result': 'simulated_validation'
+                "success": True,
+                "next_state": WorkflowState.VALIDATED.value,
+                "validation_result": "simulated_validation",
             }
 
         try:
             # Get validation agent
             validator = self.agent_coordinator.select_best_agent(
-                capability=AgentCapability.VALIDATION,
-                preferences=[self.config.agents.primary]
+                capability=AgentCapability.VALIDATION, preferences=[self.config.agents.primary]
             )
 
             if not validator:
@@ -669,19 +658,19 @@ class WorkflowEngine:
             validation_context = ValidationContext(
                 issue=context.issue,
                 project_context={
-                    'maturity_level': context.maturity_level,
-                    'platform': self.config.platforms.primary,
-                    'configuration': context.custom_settings
+                    "maturity_level": context.maturity_level,
+                    "platform": self.config.platforms.primary,
+                    "configuration": context.custom_settings,
                 },
                 maturity_level=context.maturity_level,
-                previous_attempts=context.previous_iterations
+                previous_attempts=context.previous_iterations,
             )
 
             # Run validation with streaming progress
             console.print("Running AI validation...")
 
             # Use streaming validation if available, otherwise fall back to regular
-            if hasattr(validator, 'validate_issue_stream'):
+            if hasattr(validator, "validate_issue_stream"):
                 validation_generator = validator.validate_issue_stream(validation_context)
                 full_response = ""
 
@@ -714,15 +703,15 @@ class WorkflowEngine:
                         self.config.repo_owner,
                         self.config.repo_name,
                         session.issue_number,
-                        ["validated"]
+                        ["validated"],
                     )
 
                 # Check if approval is required
                 if self.config.workflows.validation_requires_approval and not auto_mode:
                     return {
-                        'success': True,
-                        'next_state': WorkflowState.AWAITING_APPROVAL.value,
-                        'validation_result': asdict(validation_response)
+                        "success": True,
+                        "next_state": WorkflowState.AWAITING_APPROVAL.value,
+                        "validation_result": asdict(validation_response),
                     }
                 else:
                     # Skip approval in auto mode or when approval not required
@@ -731,13 +720,13 @@ class WorkflowEngine:
                             self.config.repo_owner,
                             self.config.repo_name,
                             session.issue_number,
-                            ["ready-for-implementation"]
+                            ["ready-for-implementation"],
                         )
 
                     return {
-                        'success': True,
-                        'next_state': WorkflowState.VALIDATED.value,
-                        'validation_result': asdict(validation_response)
+                        "success": True,
+                        "next_state": WorkflowState.VALIDATED.value,
+                        "validation_result": asdict(validation_response),
                     }
 
             elif validation_response.result == ValidationResult.NEEDS_CLARIFICATION:
@@ -746,31 +735,24 @@ class WorkflowEngine:
                     self._post_validation_comment(session, validation_response)
 
                 return {
-                    'success': False,
-                    'error': 'Issue needs clarification',
-                    'validation_result': asdict(validation_response)
+                    "success": False,
+                    "error": "Issue needs clarification",
+                    "validation_result": asdict(validation_response),
                 }
 
             else:
                 return {
-                    'success': False,
-                    'error': f'Validation failed: {validation_response.result}',
-                    'validation_result': asdict(validation_response)
+                    "success": False,
+                    "error": f"Validation failed: {validation_response.result}",
+                    "validation_result": asdict(validation_response),
                 }
 
         except Exception as e:
             logger.error(f"Validation stage failed: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _stage_validation_approval(
-        self,
-        session: WorkflowSession,
-        context: WorkflowContext,
-        auto_mode: bool,
-        dry_run: bool
+        self, session: WorkflowSession, context: WorkflowContext, auto_mode: bool, dry_run: bool
     ) -> Dict[str, Any]:
         """Execute validation approval stage.
 
@@ -787,9 +769,9 @@ class WorkflowEngine:
 
         if dry_run:
             return {
-                'success': True,
-                'next_state': WorkflowState.VALIDATED.value,
-                'approval': 'simulated_approval'
+                "success": True,
+                "next_state": WorkflowState.VALIDATED.value,
+                "approval": "simulated_approval",
             }
 
         try:
@@ -807,9 +789,15 @@ class WorkflowEngine:
 
             # Get user approval
             while True:
-                response = console.input("\n[bold]Proceed with automated implementation? [Y/n/details]: [/bold]").strip().lower()
+                response = (
+                    console.input(
+                        "\n[bold]Proceed with automated implementation? [Y/n/details]: [/bold]"
+                    )
+                    .strip()
+                    .lower()
+                )
 
-                if response in ['y', 'yes', '']:
+                if response in ["y", "yes", ""]:
                     console.print("[green]✓ Implementation approved by human[/green]")
 
                     # Add ready-for-implementation label
@@ -818,24 +806,24 @@ class WorkflowEngine:
                             self.config.repo_owner,
                             self.config.repo_name,
                             session.issue_number,
-                            ["ready-for-implementation"]
+                            ["ready-for-implementation"],
                         )
 
                     return {
-                        'success': True,
-                        'next_state': WorkflowState.VALIDATED.value,
-                        'approval': 'approved'
+                        "success": True,
+                        "next_state": WorkflowState.VALIDATED.value,
+                        "approval": "approved",
                     }
 
-                elif response in ['n', 'no']:
+                elif response in ["n", "no"]:
                     console.print("[yellow]⚠ Implementation rejected by human[/yellow]")
                     return {
-                        'success': True,
-                        'next_state': WorkflowState.READY_FOR_HUMAN.value,
-                        'approval': 'rejected'
+                        "success": True,
+                        "next_state": WorkflowState.READY_FOR_HUMAN.value,
+                        "approval": "rejected",
                     }
 
-                elif response == 'details':
+                elif response == "details":
                     # Show full validation transcript
                     console.print("\n[cyan]Full Validation Details:[/cyan]")
                     console.print(session.session_transcript)
@@ -847,17 +835,10 @@ class WorkflowEngine:
 
         except Exception as e:
             logger.error(f"Validation approval stage failed: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _stage_worktree_creation(
-        self,
-        session: WorkflowSession,
-        context: WorkflowContext,
-        auto_mode: bool,
-        dry_run: bool
+        self, session: WorkflowSession, context: WorkflowContext, auto_mode: bool, dry_run: bool
     ) -> Dict[str, Any]:
         """Execute worktree creation stage.
 
@@ -874,10 +855,10 @@ class WorkflowEngine:
 
         if dry_run:
             return {
-                'success': True,
-                'next_state': WorkflowState.IMPLEMENTING.value,
-                'worktree_path': '/tmp/mock-worktree',
-                'branch_name': f'issue-{session.issue_number}'
+                "success": True,
+                "next_state": WorkflowState.IMPLEMENTING.value,
+                "worktree_path": "/tmp/mock-worktree",
+                "branch_name": f"issue-{session.issue_number}",
             }
 
         try:
@@ -895,10 +876,11 @@ class WorkflowEngine:
                     cwd=self.config.project_root,
                     capture_output=True,
                     text=True,
-                    check=False  # Don't fail if worktree doesn't exist in git
+                    check=False,  # Don't fail if worktree doesn't exist in git
                 )
                 # Force remove directory if still exists
                 import shutil
+
                 if worktree_path.exists():
                     shutil.rmtree(worktree_path, ignore_errors=True)
 
@@ -909,7 +891,7 @@ class WorkflowEngine:
                 ["git", "branch", "--list", branch_name],
                 cwd=self.config.project_root,
                 capture_output=True,
-                text=True
+                text=True,
             )
 
             if branch_check.stdout.strip():
@@ -919,16 +901,24 @@ class WorkflowEngine:
                     cwd=self.config.project_root,
                     capture_output=True,
                     text=True,
-                    check=True
+                    check=True,
                 )
 
             # Create git worktree (based on original pipeline's approach)
             result = subprocess.run(
-                ["git", "worktree", "add", str(worktree_path), "-b", branch_name, self.config.base_branch],
+                [
+                    "git",
+                    "worktree",
+                    "add",
+                    str(worktree_path),
+                    "-b",
+                    branch_name,
+                    self.config.base_branch,
+                ],
                 cwd=self.config.project_root,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
 
             # Symlink venv if it exists (for pre-commit hooks like original)
@@ -936,6 +926,7 @@ class WorkflowEngine:
             worktree_venv = worktree_path / "venv"
             if main_venv.exists() and not worktree_venv.exists():
                 import os
+
                 os.symlink(main_venv, worktree_venv)
                 console.print(f"[blue]🔗 Symlinked venv from main repository[/blue]")
 
@@ -946,25 +937,18 @@ class WorkflowEngine:
             console.print(f"[green]✓ Worktree created at: {worktree_path}[/green]")
 
             return {
-                'success': True,
-                'next_state': WorkflowState.IMPLEMENTING.value,
-                'worktree_path': str(worktree_path),
-                'branch_name': branch_name
+                "success": True,
+                "next_state": WorkflowState.IMPLEMENTING.value,
+                "worktree_path": str(worktree_path),
+                "branch_name": branch_name,
             }
 
         except Exception as e:
             logger.error(f"Worktree creation failed: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _stage_implementation(
-        self,
-        session: WorkflowSession,
-        context: WorkflowContext,
-        auto_mode: bool,
-        dry_run: bool
+        self, session: WorkflowSession, context: WorkflowContext, auto_mode: bool, dry_run: bool
     ) -> Dict[str, Any]:
         """Execute implementation stage.
 
@@ -981,17 +965,16 @@ class WorkflowEngine:
 
         if dry_run:
             return {
-                'success': True,
-                'next_state': WorkflowState.IMPLEMENTED.value,
-                'files_changed': ['src/example.py', 'tests/test_example.py'],
-                'commits': ['feat: implement feature #123']
+                "success": True,
+                "next_state": WorkflowState.IMPLEMENTED.value,
+                "files_changed": ["src/example.py", "tests/test_example.py"],
+                "commits": ["feat: implement feature #123"],
             }
 
         try:
             # Get implementation agent
             implementer = self.agent_coordinator.select_best_agent(
-                capability=AgentCapability.IMPLEMENTATION,
-                preferences=[self.config.agents.primary]
+                capability=AgentCapability.IMPLEMENTATION, preferences=[self.config.agents.primary]
             )
 
             if not implementer:
@@ -1002,16 +985,16 @@ class WorkflowEngine:
                 issue=context.issue,
                 working_directory=str(session.worktree_path),
                 project_context={
-                    'maturity_level': context.maturity_level,
-                    'configuration': context.custom_settings,
-                    'previous_transcript': session.session_transcript
+                    "maturity_level": context.maturity_level,
+                    "configuration": context.custom_settings,
+                    "previous_transcript": session.session_transcript,
                 },
                 validation_result={},  # TODO: Get from session
                 previous_iterations=context.previous_iterations,
                 constraints={
-                    'max_iterations': session.max_iterations,
-                    'current_iteration': session.iteration_count
-                }
+                    "max_iterations": session.max_iterations,
+                    "current_iteration": session.iteration_count,
+                },
             )
 
             # Run implementation
@@ -1028,9 +1011,9 @@ class WorkflowEngine:
                 session.iteration_count += 1
 
                 return {
-                    'success': True,
-                    'next_state': WorkflowState.IMPLEMENTED.value,
-                    'implementation_result': asdict(impl_response)
+                    "success": True,
+                    "next_state": WorkflowState.IMPLEMENTED.value,
+                    "implementation_result": asdict(impl_response),
                 }
 
             elif impl_response.result == ImplementationResult.PARTIAL:
@@ -1038,31 +1021,24 @@ class WorkflowEngine:
 
                 # TODO: Handle partial implementation
                 return {
-                    'success': True,
-                    'next_state': WorkflowState.IMPLEMENTED.value,
-                    'implementation_result': asdict(impl_response)
+                    "success": True,
+                    "next_state": WorkflowState.IMPLEMENTED.value,
+                    "implementation_result": asdict(impl_response),
                 }
 
             else:
                 return {
-                    'success': False,
-                    'error': f'Implementation failed: {impl_response.result}',
-                    'implementation_result': asdict(impl_response)
+                    "success": False,
+                    "error": f"Implementation failed: {impl_response.result}",
+                    "implementation_result": asdict(impl_response),
                 }
 
         except Exception as e:
             logger.error(f"Implementation stage failed: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _stage_review(
-        self,
-        session: WorkflowSession,
-        context: WorkflowContext,
-        auto_mode: bool,
-        dry_run: bool
+        self, session: WorkflowSession, context: WorkflowContext, auto_mode: bool, dry_run: bool
     ) -> Dict[str, Any]:
         """Execute code review stage.
 
@@ -1079,9 +1055,9 @@ class WorkflowEngine:
 
         if dry_run:
             return {
-                'success': True,
-                'next_state': WorkflowState.REVIEW_PASSED.value,
-                'review_decision': 'approve'
+                "success": True,
+                "next_state": WorkflowState.REVIEW_PASSED.value,
+                "review_decision": "approve",
             }
 
         try:
@@ -1092,9 +1068,7 @@ class WorkflowEngine:
 
             # Get changed files
             changed_files = self.platform_adapter.get_pull_request_files(
-                self.config.repo_owner,
-                self.config.repo_name,
-                session.pr_number
+                self.config.repo_owner, self.config.repo_name, session.pr_number
             )
 
             # Create review context
@@ -1114,22 +1088,21 @@ class WorkflowEngine:
                     updated_at=session.updated_at,
                     mergeable=True,
                     url=f"https://github.com/{self.config.repo_owner}/{self.config.repo_name}/pull/{session.pr_number}",
-                    platform_data={}
+                    platform_data={},
                 ),
                 changed_files=changed_files,
                 project_context={
-                    'maturity_level': context.maturity_level,
-                    'configuration': context.custom_settings
+                    "maturity_level": context.maturity_level,
+                    "configuration": context.custom_settings,
                 },
                 maturity_level=context.maturity_level,
-                review_focus=['correctness', 'maintainability', 'security']
+                review_focus=["correctness", "maintainability", "security"],
             )
 
             # Coordinate multi-agent review
             console.print("Running AI code review...")
             review_responses = self.agent_coordinator.coordinate_review(
-                review_context,
-                reviewer_names=self.config.agents.review_sources
+                review_context, reviewer_names=self.config.agents.review_sources
             )
 
             # Merge review feedback
@@ -1137,7 +1110,9 @@ class WorkflowEngine:
 
             # Update session transcript
             for response in review_responses:
-                session.session_transcript += f"\n=== REVIEW ({response.decision}) ===\n{response.message}\n"
+                session.session_transcript += (
+                    f"\n=== REVIEW ({response.decision}) ===\n{response.message}\n"
+                )
 
             # Post AI review comments to GitHub PR
             try:
@@ -1153,7 +1128,7 @@ class WorkflowEngine:
                     repo=self.config.repo_name,
                     pr_number=session.pr_number,
                     body=review_body,
-                    decision=merged_decision
+                    decision=merged_decision,
                 )
                 console.print("[blue]✓ AI review posted to GitHub PR[/blue]")
             except Exception as e:
@@ -1162,9 +1137,9 @@ class WorkflowEngine:
             if merged_decision == ReviewDecision.APPROVED:
                 console.print("[green]✓ Code review passed[/green]")
                 return {
-                    'success': True,
-                    'next_state': WorkflowState.REVIEW_PASSED.value,
-                    'review_responses': [asdict(r) for r in review_responses]
+                    "success": True,
+                    "next_state": WorkflowState.REVIEW_PASSED.value,
+                    "review_responses": [asdict(r) for r in review_responses],
                 }
             else:
                 console.print("[yellow]⚠ Code review requires fixes[/yellow]")
@@ -1177,25 +1152,33 @@ class WorkflowEngine:
                         auto_fix_result = self.auto_fix_engine.run_auto_fix_cycle(session.pr_number)
 
                         if auto_fix_result.success:
-                            console.print(f"[green]✓ Auto-fix applied {len(auto_fix_result.fixes_applied)} fixes[/green]")
+                            console.print(
+                                f"[green]✓ Auto-fix applied {len(auto_fix_result.fixes_applied)} fixes[/green]"
+                            )
 
                             # Update session transcript with auto-fix results
                             session.session_transcript += f"\n=== AUTO-FIX ===\n"
-                            session.session_transcript += f"Applied {len(auto_fix_result.fixes_applied)} fixes:\n"
+                            session.session_transcript += (
+                                f"Applied {len(auto_fix_result.fixes_applied)} fixes:\n"
+                            )
                             for fix in auto_fix_result.fixes_applied:
                                 session.session_transcript += f"- {fix}\n"
-                            session.session_transcript += f"Modified files: {', '.join(auto_fix_result.files_modified)}\n"
+                            session.session_transcript += (
+                                f"Modified files: {', '.join(auto_fix_result.files_modified)}\n"
+                            )
 
                             # Continue to implementation for another review cycle
                             console.print("[blue]🔄 Triggering re-review after auto-fixes[/blue]")
                             return {
-                                'success': True,
-                                'next_state': WorkflowState.IMPLEMENTING.value,
-                                'auto_fix_applied': True,
-                                'fixes_applied': auto_fix_result.fixes_applied
+                                "success": True,
+                                "next_state": WorkflowState.IMPLEMENTING.value,
+                                "auto_fix_applied": True,
+                                "fixes_applied": auto_fix_result.fixes_applied,
                             }
                         else:
-                            console.print(f"[yellow]⚠ Auto-fix failed: {auto_fix_result.error_message}[/yellow]")
+                            console.print(
+                                f"[yellow]⚠ Auto-fix failed: {auto_fix_result.error_message}[/yellow]"
+                            )
                             # Fall back to manual fixes
 
                     except Exception as e:
@@ -1203,24 +1186,17 @@ class WorkflowEngine:
                         # Fall back to manual fixes
 
                 return {
-                    'success': True,
-                    'next_state': WorkflowState.NEEDS_FIXES.value,
-                    'review_responses': [asdict(r) for r in review_responses]
+                    "success": True,
+                    "next_state": WorkflowState.NEEDS_FIXES.value,
+                    "review_responses": [asdict(r) for r in review_responses],
                 }
 
         except Exception as e:
             logger.error(f"Review stage failed: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _stage_fix_implementation(
-        self,
-        session: WorkflowSession,
-        context: WorkflowContext,
-        auto_mode: bool,
-        dry_run: bool
+        self, session: WorkflowSession, context: WorkflowContext, auto_mode: bool, dry_run: bool
     ) -> Dict[str, Any]:
         """Execute fix implementation stage.
 
@@ -1240,25 +1216,18 @@ class WorkflowEngine:
             console.print(f"[red]✗ Maximum iterations ({session.max_iterations}) reached[/red]")
             session.current_state = WorkflowState.MAX_ITERATIONS_REACHED
             return {
-                'success': False,
-                'error': 'Maximum iterations reached',
-                'next_state': WorkflowState.MAX_ITERATIONS_REACHED.value
+                "success": False,
+                "error": "Maximum iterations reached",
+                "next_state": WorkflowState.MAX_ITERATIONS_REACHED.value,
             }
 
         # Increment iteration and go back to implementation
         session.iteration_count += 1
 
-        return {
-            'success': True,
-            'next_state': WorkflowState.IMPLEMENTING.value
-        }
+        return {"success": True, "next_state": WorkflowState.IMPLEMENTING.value}
 
     def _stage_finalization(
-        self,
-        session: WorkflowSession,
-        context: WorkflowContext,
-        auto_mode: bool,
-        dry_run: bool
+        self, session: WorkflowSession, context: WorkflowContext, auto_mode: bool, dry_run: bool
     ) -> Dict[str, Any]:
         """Execute finalization stage.
 
@@ -1274,10 +1243,7 @@ class WorkflowEngine:
         console.print("\n[bold]🏁 Stage: Finalization[/bold]")
 
         if dry_run:
-            return {
-                'success': True,
-                'next_state': WorkflowState.READY_FOR_HUMAN.value
-            }
+            return {"success": True, "next_state": WorkflowState.READY_FOR_HUMAN.value}
 
         try:
             # TODO: Implement finalization steps:
@@ -1289,19 +1255,18 @@ class WorkflowEngine:
             console.print("[green]✓ Issue ready for human review[/green]")
 
             return {
-                'success': True,
-                'next_state': WorkflowState.READY_FOR_HUMAN.value,
-                'pr_url': f"https://github.com/{self.config.repo_owner}/{self.config.repo_name}/pull/{session.pr_number}"
+                "success": True,
+                "next_state": WorkflowState.READY_FOR_HUMAN.value,
+                "pr_url": f"https://github.com/{self.config.repo_owner}/{self.config.repo_name}/pull/{session.pr_number}",
             }
 
         except Exception as e:
             logger.error(f"Finalization stage failed: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
-    def _create_pull_request(self, session: WorkflowSession, context: WorkflowContext) -> PullRequest:
+    def _create_pull_request(
+        self, session: WorkflowSession, context: WorkflowContext
+    ) -> PullRequest:
         """Create pull request for the issue.
 
         Args:
@@ -1321,7 +1286,7 @@ class WorkflowEngine:
                 title=f"Fix issue #{session.issue_number}: {context.issue.title}",
                 body=f"Automated fix for issue #{session.issue_number}\n\n{context.issue.body}",
                 source_branch=session.branch_name,
-                target_branch=self.config.base_branch
+                target_branch=self.config.base_branch,
             )
 
             console.print(f"[green]✓ Created pull request #{pr.number}[/green]")
@@ -1329,8 +1294,7 @@ class WorkflowEngine:
 
         except Exception as e:
             raise PlatformError(
-                f"Failed to create pull request: {str(e)}",
-                platform=self.platform_adapter.name
+                f"Failed to create pull request: {str(e)}", platform=self.platform_adapter.name
             ) from e
 
     def _merge_review_feedback(self, review_responses: List[ReviewResponse]) -> ReviewDecision:
@@ -1356,9 +1320,7 @@ class WorkflowEngine:
             return ReviewDecision.COMMENT
 
     def _post_validation_comment(
-        self,
-        session: WorkflowSession,
-        validation_response: ValidationResponse
+        self, session: WorkflowSession, validation_response: ValidationResponse
     ) -> None:
         """Post validation comment to issue.
 
@@ -1383,10 +1345,7 @@ class WorkflowEngine:
 
         try:
             self.platform_adapter.add_issue_comment(
-                self.config.repo_owner,
-                self.config.repo_name,
-                session.issue_number,
-                comment_body
+                self.config.repo_owner, self.config.repo_name, session.issue_number, comment_body
             )
             console.print("[green]✓ Validation comment posted[/green]")
         except Exception as e:
@@ -1403,9 +1362,11 @@ class WorkflowEngine:
         """
         console.print(f"\n[yellow]Completed stage: {current_state.value}[/yellow]")
         response = console.input("Continue to next stage? [Y/n]: ").strip().lower()
-        return response != 'n'
+        return response != "n"
 
-    def monitor_and_auto_fix_ci(self, session: WorkflowSession, max_attempts: int = 3) -> Dict[str, Any]:
+    def monitor_and_auto_fix_ci(
+        self, session: WorkflowSession, max_attempts: int = 3
+    ) -> Dict[str, Any]:
         """Monitor CI status and apply auto-fixes for failures.
 
         Args:
@@ -1416,7 +1377,7 @@ class WorkflowEngine:
             Results of CI monitoring and auto-fix attempts
         """
         if not self.auto_fix_engine or not session.pr_number:
-            return {'success': False, 'error': 'Auto-fix not available or no PR'}
+            return {"success": False, "error": "Auto-fix not available or no PR"}
 
         console.print(f"[blue]🔍 Monitoring CI status for PR #{session.pr_number}[/blue]")
 
@@ -1426,6 +1387,7 @@ class WorkflowEngine:
             try:
                 # Wait for CI to complete (simplified - in reality would poll status)
                 import time
+
                 if attempt == 0:
                     console.print("[blue]⏳ Waiting for CI to complete...[/blue]")
                     time.sleep(30)  # Give CI time to run
@@ -1436,13 +1398,17 @@ class WorkflowEngine:
                 if not auto_fix_result.success and auto_fix_result.error_message:
                     if "No feedback items found" in auto_fix_result.error_message:
                         console.print("[green]✓ No CI failures detected[/green]")
-                        return {'success': True, 'ci_status': 'passing', 'attempts': attempt + 1}
+                        return {"success": True, "ci_status": "passing", "attempts": attempt + 1}
                     else:
-                        console.print(f"[red]✗ CI monitoring failed: {auto_fix_result.error_message}[/red]")
-                        return {'success': False, 'error': auto_fix_result.error_message}
+                        console.print(
+                            f"[red]✗ CI monitoring failed: {auto_fix_result.error_message}[/red]"
+                        )
+                        return {"success": False, "error": auto_fix_result.error_message}
 
                 if auto_fix_result.success and auto_fix_result.fixes_applied:
-                    console.print(f"[green]✓ Auto-fixed {len(auto_fix_result.fixes_applied)} CI failures[/green]")
+                    console.print(
+                        f"[green]✓ Auto-fixed {len(auto_fix_result.fixes_applied)} CI failures[/green]"
+                    )
 
                     # Update session transcript
                     session.session_transcript += f"\n=== CI AUTO-FIX (Attempt {attempt + 1}) ===\n"
@@ -1456,22 +1422,26 @@ class WorkflowEngine:
                     # No fixes needed
                     console.print("[green]✓ CI checks passing[/green]")
                     return {
-                        'success': True,
-                        'ci_status': 'passing',
-                        'attempts': attempt + 1,
-                        'total_fixes': sum(len(auto_fix_result.fixes_applied) for _ in range(attempt + 1))
+                        "success": True,
+                        "ci_status": "passing",
+                        "attempts": attempt + 1,
+                        "total_fixes": sum(
+                            len(auto_fix_result.fixes_applied) for _ in range(attempt + 1)
+                        ),
                     }
 
             except Exception as e:
-                console.print(f"[yellow]⚠ CI monitoring error (attempt {attempt + 1}): {str(e)}[/yellow]")
+                console.print(
+                    f"[yellow]⚠ CI monitoring error (attempt {attempt + 1}): {str(e)}[/yellow]"
+                )
                 if attempt == max_attempts - 1:
-                    return {'success': False, 'error': str(e)}
+                    return {"success": False, "error": str(e)}
                 continue
 
         return {
-            'success': False,
-            'error': f'Maximum auto-fix attempts ({max_attempts}) reached',
-            'attempts': max_attempts
+            "success": False,
+            "error": f"Maximum auto-fix attempts ({max_attempts}) reached",
+            "attempts": max_attempts,
         }
 
     def run_comprehensive_auto_fix(self, session: WorkflowSession) -> Dict[str, Any]:
@@ -1484,15 +1454,14 @@ class WorkflowEngine:
             Comprehensive auto-fix results
         """
         if not self.auto_fix_engine or not session.pr_number:
-            return {'success': False, 'error': 'Auto-fix not available or no PR'}
+            return {"success": False, "error": "Auto-fix not available or no PR"}
 
         console.print(f"[blue]🔧 Running comprehensive auto-fix for PR #{session.pr_number}[/blue]")
 
         try:
             # Run auto-fix cycle for both CI and review feedback
             auto_fix_result = self.auto_fix_engine.run_auto_fix_cycle(
-                pr_number=session.pr_number,
-                max_iterations=3
+                pr_number=session.pr_number, max_iterations=3
             )
 
             if auto_fix_result.success:
@@ -1502,15 +1471,17 @@ class WorkflowEngine:
 
                 # Update session with results
                 session.session_transcript += f"\n=== COMPREHENSIVE AUTO-FIX ===\n"
-                session.session_transcript += f"Validation passed: {auto_fix_result.validation_passed}\n"
+                session.session_transcript += (
+                    f"Validation passed: {auto_fix_result.validation_passed}\n"
+                )
                 for fix in auto_fix_result.fixes_applied:
                     session.session_transcript += f"- {fix}\n"
 
                 return {
-                    'success': True,
-                    'fixes_applied': auto_fix_result.fixes_applied,
-                    'files_modified': auto_fix_result.files_modified,
-                    'validation_passed': auto_fix_result.validation_passed
+                    "success": True,
+                    "fixes_applied": auto_fix_result.fixes_applied,
+                    "files_modified": auto_fix_result.files_modified,
+                    "validation_passed": auto_fix_result.validation_passed,
                 }
             else:
                 console.print(f"[yellow]⚠ Comprehensive auto-fix completed with issues[/yellow]")
@@ -1518,14 +1489,14 @@ class WorkflowEngine:
                     console.print(f"  Error: {auto_fix_result.error_message}")
 
                 return {
-                    'success': False,
-                    'error': auto_fix_result.error_message,
-                    'partial_fixes': auto_fix_result.fixes_applied
+                    "success": False,
+                    "error": auto_fix_result.error_message,
+                    "partial_fixes": auto_fix_result.fixes_applied,
                 }
 
         except Exception as e:
             console.print(f"[red]✗ Comprehensive auto-fix failed: {str(e)}[/red]")
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}
 
     def get_workflow_status(self, issue_number: int) -> Optional[Dict[str, Any]]:
         """Get workflow status for an issue.
@@ -1544,13 +1515,13 @@ class WorkflowEngine:
             return None
 
         return {
-            'issue_number': session.issue_number,
-            'current_state': session.current_state.value,
-            'iteration_count': session.iteration_count,
-            'max_iterations': session.max_iterations,
-            'pr_number': session.pr_number,
-            'created_at': session.created_at,
-            'updated_at': session.updated_at
+            "issue_number": session.issue_number,
+            "current_state": session.current_state.value,
+            "iteration_count": session.iteration_count,
+            "max_iterations": session.max_iterations,
+            "pr_number": session.pr_number,
+            "created_at": session.created_at,
+            "updated_at": session.updated_at,
         }
 
     def cleanup_workflow(self, issue_number: int, force: bool = False) -> bool:

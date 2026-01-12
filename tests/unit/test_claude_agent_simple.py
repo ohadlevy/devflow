@@ -1,12 +1,13 @@
 """Simplified unit tests for Claude AI agent."""
 
-import pytest
-from unittest.mock import Mock, patch
 from datetime import datetime
+from unittest.mock import Mock, patch
 
-from devflow.agents.claude import ClaudeAgentProvider
+import pytest
+
+from devflow.adapters.base import Issue, IssueState, PullRequest, PullRequestState
 from devflow.agents.base import AgentCapability
-from devflow.adapters.base import Issue, PullRequest, IssueState, PullRequestState
+from devflow.agents.claude import ClaudeAgentProvider
 
 
 class TestClaudeAgentProvider:
@@ -18,7 +19,7 @@ class TestClaudeAgentProvider:
         return {
             "model": "claude-3.5-sonnet",
             "api_key": "test-api-key",
-            "project_context": {"test": True}
+            "project_context": {"test": True},
         }
 
     @pytest.fixture
@@ -39,7 +40,7 @@ class TestClaudeAgentProvider:
             AgentCapability.VALIDATION,
             AgentCapability.IMPLEMENTATION,
             AgentCapability.REVIEW,
-            AgentCapability.ANALYSIS
+            AgentCapability.ANALYSIS,
         ]
         assert capabilities == expected_capabilities
 
@@ -53,19 +54,16 @@ class TestClaudeAgentProvider:
         """Test context size property."""
         assert agent.max_context_size == 200000
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_validate_connection_success(self, mock_run, agent):
         """Test successful connection validation."""
         # Mock successful Claude Code call
-        mock_run.return_value = Mock(
-            returncode=0,
-            stdout="Claude Code is working properly"
-        )
+        mock_run.return_value = Mock(returncode=0, stdout="Claude Code is working properly")
 
         result = agent.validate_connection()
         assert result is True
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_validate_connection_failure(self, mock_run, agent):
         """Test failed connection validation."""
         # Mock failed Claude Code call

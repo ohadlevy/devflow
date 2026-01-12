@@ -5,15 +5,15 @@ automatically applies fixes when CI fails, and posts validation status
 when everything passes.
 """
 
-import time
 import logging
-from typing import Dict, List, Optional
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Dict, List, Optional
 
-from devflow.core.auto_fix import AutoFixEngine
 from devflow.adapters.base import PlatformAdapter, PullRequest
 from devflow.agents.base import AgentProvider
+from devflow.core.auto_fix import AutoFixEngine
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MonitoringStatus:
     """Status of PR monitoring."""
+
     pr_number: int
     last_check: datetime
     ci_status: str  # "passing", "failing", "pending"
@@ -36,7 +37,7 @@ class ContinuousPRMonitor:
         self,
         platform_adapter: PlatformAdapter,
         auto_fix_engine: AutoFixEngine,
-        check_interval: int = 300  # 5 minutes
+        check_interval: int = 300,  # 5 minutes
     ):
         self.platform_adapter = platform_adapter
         self.auto_fix_engine = auto_fix_engine
@@ -54,7 +55,7 @@ class ContinuousPRMonitor:
             ci_status="pending",
             auto_fix_attempts=0,
             ready_for_human=False,
-            validation_complete=False
+            validation_complete=False,
         )
 
         # Post initial monitoring comment
@@ -73,7 +74,7 @@ class ContinuousPRMonitor:
                 cycle_results[pr_number] = pr_result
 
                 # If PR is ready for human, stop monitoring it
-                if pr_result.get('ready_for_human', False):
+                if pr_result.get("ready_for_human", False):
                     logger.info(f"✅ PR #{pr_number} ready for human review")
                     self._post_validation_complete(pr_number)
                     del self.monitored_prs[pr_number]
@@ -107,9 +108,9 @@ class ContinuousPRMonitor:
                 status.ready_for_human = True
                 status.validation_complete = True
                 return {
-                    'status': 'ready_for_human',
-                    'ci_status': ci_status,
-                    'ready_for_human': True
+                    "status": "ready_for_human",
+                    "ci_status": ci_status,
+                    "ready_for_human": True,
                 }
 
             elif ci_status == "failing" and status.auto_fix_attempts < 3:
@@ -117,8 +118,7 @@ class ContinuousPRMonitor:
                 logger.info(f"🔧 Applying auto-fixes to PR #{pr_number}")
 
                 auto_fix_result = self.auto_fix_engine.run_auto_fix_cycle(
-                    pr_number,
-                    max_iterations=1  # One iteration per monitoring cycle
+                    pr_number, max_iterations=1  # One iteration per monitoring cycle
                 )
 
                 status.auto_fix_attempts += 1
@@ -126,16 +126,16 @@ class ContinuousPRMonitor:
                 if auto_fix_result.success and auto_fix_result.fixes_applied:
                     self._post_auto_fix_comment(pr_number, auto_fix_result)
                     return {
-                        'status': 'auto_fix_applied',
-                        'fixes_applied': auto_fix_result.fixes_applied,
-                        'attempt': status.auto_fix_attempts
+                        "status": "auto_fix_applied",
+                        "fixes_applied": auto_fix_result.fixes_applied,
+                        "attempt": status.auto_fix_attempts,
                     }
                 else:
                     logger.warning(f"Auto-fix failed for PR #{pr_number}")
                     return {
-                        'status': 'auto_fix_failed',
-                        'error': auto_fix_result.error_message,
-                        'attempt': status.auto_fix_attempts
+                        "status": "auto_fix_failed",
+                        "error": auto_fix_result.error_message,
+                        "attempt": status.auto_fix_attempts,
                     }
 
             elif status.auto_fix_attempts >= 3:
@@ -143,21 +143,18 @@ class ContinuousPRMonitor:
                 status.ready_for_human = True
                 self._post_human_intervention_needed(pr_number)
                 return {
-                    'status': 'needs_human_intervention',
-                    'ci_status': ci_status,
-                    'attempts': status.auto_fix_attempts
+                    "status": "needs_human_intervention",
+                    "ci_status": ci_status,
+                    "attempts": status.auto_fix_attempts,
                 }
 
             else:
                 # CI pending or other status
-                return {
-                    'status': 'waiting',
-                    'ci_status': ci_status
-                }
+                return {"status": "waiting", "ci_status": ci_status}
 
         except Exception as e:
             logger.error(f"Error processing PR #{pr_number}: {e}")
-            return {'status': 'error', 'error': str(e)}
+            return {"status": "error", "error": str(e)}
 
     def _get_ci_status(self, pr_number: int) -> str:
         """Get CI status for a PR."""
@@ -167,11 +164,12 @@ class ContinuousPRMonitor:
 
             # Mock CI check - in real implementation would parse actual CI status
             import subprocess
+
             result = subprocess.run(
-                ['gh', 'pr', 'checks', str(pr_number)],
+                ["gh", "pr", "checks", str(pr_number)],
                 capture_output=True,
                 text=True,
-                cwd='/tmp/devflow-worktree-7-ci'
+                cwd="/tmp/devflow-worktree-7-ci",
             )
 
             if result.returncode == 0:
@@ -211,10 +209,12 @@ DevFlow is now continuously monitoring this PR and will:
 
         try:
             import subprocess
-            subprocess.run([
-                'gh', 'pr', 'comment', str(pr_number),
-                '--body', comment
-            ], cwd='/tmp/devflow-worktree-7-ci', check=True)
+
+            subprocess.run(
+                ["gh", "pr", "comment", str(pr_number), "--body", comment],
+                cwd="/tmp/devflow-worktree-7-ci",
+                check=True,
+            )
 
         except Exception as e:
             logger.error(f"Failed to post monitoring comment: {e}")
@@ -241,10 +241,12 @@ DevFlow will continue monitoring and apply additional fixes if needed.
 
         try:
             import subprocess
-            subprocess.run([
-                'gh', 'pr', 'comment', str(pr_number),
-                '--body', comment
-            ], cwd='/tmp/devflow-worktree-7-ci', check=True)
+
+            subprocess.run(
+                ["gh", "pr", "comment", str(pr_number), "--body", comment],
+                cwd="/tmp/devflow-worktree-7-ci",
+                check=True,
+            )
 
         except Exception as e:
             logger.error(f"Failed to post auto-fix comment: {e}")
@@ -275,16 +277,19 @@ This PR has been fully validated by DevFlow automation and is ready for:
 
         try:
             import subprocess
-            subprocess.run([
-                'gh', 'pr', 'comment', str(pr_number),
-                '--body', comment
-            ], cwd='/tmp/devflow-worktree-7-ci', check=True)
+
+            subprocess.run(
+                ["gh", "pr", "comment", str(pr_number), "--body", comment],
+                cwd="/tmp/devflow-worktree-7-ci",
+                check=True,
+            )
 
             # Also add a label to mark it as ready
-            subprocess.run([
-                'gh', 'pr', 'edit', str(pr_number),
-                '--add-label', 'ready-for-human-review'
-            ], cwd='/tmp/devflow-worktree-7-ci', check=False)
+            subprocess.run(
+                ["gh", "pr", "edit", str(pr_number), "--add-label", "ready-for-human-review"],
+                cwd="/tmp/devflow-worktree-7-ci",
+                check=False,
+            )
 
         except Exception as e:
             logger.error(f"Failed to post validation complete comment: {e}")
@@ -316,16 +321,19 @@ Once you push manual fixes, DevFlow will **resume monitoring** and continue auto
 
         try:
             import subprocess
-            subprocess.run([
-                'gh', 'pr', 'comment', str(pr_number),
-                '--body', comment
-            ], cwd='/tmp/devflow-worktree-7-ci', check=True)
+
+            subprocess.run(
+                ["gh", "pr", "comment", str(pr_number), "--body", comment],
+                cwd="/tmp/devflow-worktree-7-ci",
+                check=True,
+            )
 
             # Add label for human intervention
-            subprocess.run([
-                'gh', 'pr', 'edit', str(pr_number),
-                '--add-label', 'needs-human-intervention'
-            ], cwd='/tmp/devflow-worktree-7-ci', check=False)
+            subprocess.run(
+                ["gh", "pr", "edit", str(pr_number), "--add-label", "needs-human-intervention"],
+                cwd="/tmp/devflow-worktree-7-ci",
+                check=False,
+            )
 
         except Exception as e:
             logger.error(f"Failed to post human intervention comment: {e}")

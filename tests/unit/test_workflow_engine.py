@@ -1,23 +1,29 @@
 """Unit tests for workflow engine."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
-from devflow.core.workflow_engine import (
-    WorkflowEngine, WorkflowState, WorkflowSession
-)
-from devflow.core.state_manager import GlobalStatistics
-from devflow.core.config import (
-    ProjectConfig, ProjectMaturity, PlatformConfig,
-    WorkflowConfig, AgentConfig
-)
+import pytest
+
 from devflow.adapters.base import Issue, IssueState
 from devflow.agents.base import (
-    ValidationResult, ImplementationResult, ReviewDecision,
-    ValidationResponse, ImplementationResponse, ReviewResponse
+    ImplementationResponse,
+    ImplementationResult,
+    ReviewDecision,
+    ReviewResponse,
+    ValidationResponse,
+    ValidationResult,
 )
+from devflow.core.config import (
+    AgentConfig,
+    PlatformConfig,
+    ProjectConfig,
+    ProjectMaturity,
+    WorkflowConfig,
+)
+from devflow.core.state_manager import GlobalStatistics
+from devflow.core.workflow_engine import WorkflowEngine, WorkflowSession, WorkflowState
 from devflow.exceptions import WorkflowError
 
 
@@ -36,7 +42,7 @@ class TestWorkflowEngine:
             maturity_level=ProjectMaturity.EARLY_STAGE,
             platforms=PlatformConfig(primary="github"),
             workflows=WorkflowConfig(max_iterations=3),
-            agents=AgentConfig(primary="mock")
+            agents=AgentConfig(primary="mock"),
         )
 
     @pytest.fixture
@@ -64,13 +70,15 @@ class TestWorkflowEngine:
         return manager
 
     @pytest.fixture
-    def workflow_engine(self, config, mock_platform_adapter, mock_agent_coordinator, mock_state_manager):
+    def workflow_engine(
+        self, config, mock_platform_adapter, mock_agent_coordinator, mock_state_manager
+    ):
         """Create workflow engine."""
         return WorkflowEngine(
             config=config,
             platform_adapter=mock_platform_adapter,
             agent_coordinator=mock_agent_coordinator,
-            state_manager=mock_state_manager
+            state_manager=mock_state_manager,
         )
 
     @pytest.fixture
@@ -88,7 +96,7 @@ class TestWorkflowEngine:
             created_at=datetime.now(),
             updated_at=datetime.now(),
             url="https://github.com/test-owner/test-repo/issues/123",
-            platform_data={}
+            platform_data={},
         )
 
     def test_workflow_engine_initialization(self, workflow_engine, config):
@@ -142,7 +150,7 @@ class TestWorkflowEngine:
             session_transcript="Previous transcript",
             context_data={"issue_title": "Test Issue"},
             created_at=datetime.now().isoformat(),
-            updated_at=datetime.now().isoformat()
+            updated_at=datetime.now().isoformat(),
         )
 
         mock_state_manager.load_session.return_value = existing_session
@@ -169,10 +177,10 @@ class TestWorkflowEngine:
                 "issue_title": "Test Issue",
                 "issue_body": "Test issue body",
                 "issue_labels": ["bug"],
-                "issue_url": "https://github.com/test-owner/test-repo/issues/123"
+                "issue_url": "https://github.com/test-owner/test-repo/issues/123",
             },
             created_at=datetime.now().isoformat(),
-            updated_at=datetime.now().isoformat()
+            updated_at=datetime.now().isoformat(),
         )
 
         context = workflow_engine._create_workflow_context(session)
@@ -182,7 +190,7 @@ class TestWorkflowEngine:
         assert context.issue.title == "Test Issue"
         assert context.maturity_level == "early_stage"
 
-    @patch('devflow.core.workflow_engine.datetime')
+    @patch("devflow.core.workflow_engine.datetime")
     def test_process_issue_dry_run(self, mock_datetime, workflow_engine, mock_issue):
         """Test issue processing in dry-run mode."""
         mock_datetime.now.return_value.isoformat.return_value = "2023-01-01T00:00:00"
@@ -195,7 +203,7 @@ class TestWorkflowEngine:
             confidence=0.8,
             message="Issue is valid",
             estimated_complexity="SIMPLE",
-            suggested_labels=["automated"]
+            suggested_labels=["automated"],
         )
 
         # Mock agent selection
@@ -203,11 +211,7 @@ class TestWorkflowEngine:
         mock_agent.validate_issue.return_value = validation_response
         workflow_engine.agent_coordinator.select_best_agent.return_value = mock_agent
 
-        result = workflow_engine.process_issue(
-            issue_number=123,
-            auto_mode=True,
-            dry_run=True
-        )
+        result = workflow_engine.process_issue(issue_number=123, auto_mode=True, dry_run=True)
 
         assert result["success"] is True
         assert result["issue_number"] == 123
@@ -224,18 +228,14 @@ class TestWorkflowEngine:
             confidence=0.9,
             message="Issue lacks detail",
             estimated_complexity="UNKNOWN",
-            suggested_labels=["needs-more-info"]
+            suggested_labels=["needs-more-info"],
         )
 
         mock_agent = Mock()
         mock_agent.validate_issue.return_value = validation_response
         workflow_engine.agent_coordinator.select_best_agent.return_value = mock_agent
 
-        result = workflow_engine.process_issue(
-            issue_number=123,
-            auto_mode=True,
-            dry_run=True
-        )
+        result = workflow_engine.process_issue(issue_number=123, auto_mode=True, dry_run=True)
 
         assert result["success"] is False
         assert "validation failed" in result["error"]
@@ -246,10 +246,7 @@ class TestWorkflowEngine:
 
         # Mock successful validation
         validation_response = ValidationResponse(
-            success=True,
-            result=ValidationResult.VALID,
-            confidence=0.8,
-            message="Issue is valid"
+            success=True, result=ValidationResult.VALID, confidence=0.8, message="Issue is valid"
         )
 
         # Mock successful implementation
@@ -259,7 +256,7 @@ class TestWorkflowEngine:
             confidence=0.9,
             message="Implementation completed",
             files_changed=["src/test.py", "tests/test_test.py"],
-            tests_added=True
+            tests_added=True,
         )
 
         mock_agent = Mock()
@@ -267,11 +264,7 @@ class TestWorkflowEngine:
         mock_agent.implement_changes.return_value = implementation_response
         workflow_engine.agent_coordinator.select_best_agent.return_value = mock_agent
 
-        result = workflow_engine.process_issue(
-            issue_number=123,
-            auto_mode=True,
-            dry_run=True
-        )
+        result = workflow_engine.process_issue(issue_number=123, auto_mode=True, dry_run=True)
 
         assert result["success"] is True
         assert "implementation" in result["stages_completed"]
@@ -290,7 +283,7 @@ class TestWorkflowEngine:
             session_transcript="Test transcript",
             context_data={},
             created_at="2023-01-01T00:00:00",
-            updated_at="2023-01-01T01:00:00"
+            updated_at="2023-01-01T01:00:00",
         )
 
         mock_state_manager.load_session.return_value = session
@@ -321,7 +314,7 @@ class TestWorkflowEngine:
             session_transcript="",
             context_data={},
             created_at=datetime.now().isoformat(),
-            updated_at=datetime.now().isoformat()
+            updated_at=datetime.now().isoformat(),
         )
 
         mock_state_manager.load_session.return_value = session
@@ -338,10 +331,7 @@ class TestWorkflowEngine:
     def test_get_statistics(self, workflow_engine, mock_state_manager):
         """Test getting workflow statistics."""
         mock_stats = GlobalStatistics(
-            total_runs=10,
-            successful_runs=8,
-            failed_runs=2,
-            average_processing_time=300.0
+            total_runs=10, successful_runs=8, failed_runs=2, average_processing_time=300.0
         )
 
         mock_state_manager.get_statistics.return_value = mock_stats
@@ -368,17 +358,13 @@ class TestWorkflowEngine:
             session_transcript="Previous attempts",
             context_data={},
             created_at=datetime.now().isoformat(),
-            updated_at=datetime.now().isoformat()
+            updated_at=datetime.now().isoformat(),
         )
 
         mock_state_manager.load_session.return_value = session
         workflow_engine.platform_adapter.get_issue.return_value = mock_issue
 
-        result = workflow_engine.process_issue(
-            issue_number=123,
-            auto_mode=True,
-            dry_run=True
-        )
+        result = workflow_engine.process_issue(issue_number=123, auto_mode=True, dry_run=True)
 
         assert result["success"] is False
         assert "maximum iterations" in result["error"]
@@ -388,22 +374,19 @@ class TestWorkflowEngine:
         # Mock platform adapter failure
         workflow_engine.platform_adapter.get_issue.side_effect = Exception("Platform error")
 
-        result = workflow_engine.process_issue(
-            issue_number=123,
-            auto_mode=True,
-            dry_run=True
-        )
+        result = workflow_engine.process_issue(issue_number=123, auto_mode=True, dry_run=True)
 
         assert result["success"] is False
         assert "Platform error" in result["error"]
 
-    @patch('devflow.core.workflow_engine.console')
+    @patch("devflow.core.workflow_engine.console")
     def test_validation_stage_streaming_progress(self, mock_console, workflow_engine, mock_issue):
         """Test validation stage with streaming progress indicators."""
         # Create session and context objects
-        from devflow.core.workflow_engine import WorkflowSession, WorkflowState
-        from devflow.agents.base import WorkflowContext
         from datetime import datetime
+
+        from devflow.agents.base import WorkflowContext
+        from devflow.core.workflow_engine import WorkflowSession, WorkflowState
 
         session = WorkflowSession(
             issue_id="test-issue-123",
@@ -417,7 +400,7 @@ class TestWorkflowEngine:
             session_transcript="",
             context_data={},
             created_at=datetime.now(),
-            updated_at=datetime.now()
+            updated_at=datetime.now(),
         )
 
         context = WorkflowContext(
@@ -426,27 +409,29 @@ class TestWorkflowEngine:
             base_branch="main",
             working_directory="/tmp/test",
             issue=mock_issue,
-            maturity_level="early_stage"
+            maturity_level="early_stage",
         )
 
         # Mock agent coordinator to return an agent with streaming capability
         mock_agent = Mock()
-        mock_agent.validate_issue_stream.return_value = iter([
-            "🔍 Starting issue analysis...",
-            "📖 Reading project context and issue details...",
-            "💭 Analyzing requirements... (10 lines processed)",
-            "🎯 Evaluating issue requirements...",
-            "⚙️ Assessing implementation feasibility...",
-            "✅ Analysis complete, processing results...",
-            "🎉 Validation passed - issue is ready for implementation",
-            ValidationResponse(
-                success=True,
-                message="Validation completed successfully",
-                data={},
-                result=ValidationResult.VALID,
-                confidence=0.9
-            )
-        ])
+        mock_agent.validate_issue_stream.return_value = iter(
+            [
+                "🔍 Starting issue analysis...",
+                "📖 Reading project context and issue details...",
+                "💭 Analyzing requirements... (10 lines processed)",
+                "🎯 Evaluating issue requirements...",
+                "⚙️ Assessing implementation feasibility...",
+                "✅ Analysis complete, processing results...",
+                "🎉 Validation passed - issue is ready for implementation",
+                ValidationResponse(
+                    success=True,
+                    message="Validation completed successfully",
+                    data={},
+                    result=ValidationResult.VALID,
+                    confidence=0.9,
+                ),
+            ]
+        )
 
         workflow_engine.agent_coordinator.select_best_agent.return_value = mock_agent
         workflow_engine.platform_adapter.add_labels_to_issue = Mock()
@@ -457,27 +442,40 @@ class TestWorkflowEngine:
         # Verify that streaming messages were printed
         mock_console.print.assert_any_call("Running AI validation...")
         mock_console.print.assert_any_call("  🔍 Starting issue analysis...", style="dim")
-        mock_console.print.assert_any_call("  📖 Reading project context and issue details...", style="dim")
-        mock_console.print.assert_any_call("  💭 Analyzing requirements... (10 lines processed)", style="dim")
+        mock_console.print.assert_any_call(
+            "  📖 Reading project context and issue details...", style="dim"
+        )
+        mock_console.print.assert_any_call(
+            "  💭 Analyzing requirements... (10 lines processed)", style="dim"
+        )
         mock_console.print.assert_any_call("  🎯 Evaluating issue requirements...", style="dim")
-        mock_console.print.assert_any_call("  ⚙️ Assessing implementation feasibility...", style="dim")
-        mock_console.print.assert_any_call("  ✅ Analysis complete, processing results...", style="dim")
-        mock_console.print.assert_any_call("  🎉 Validation passed - issue is ready for implementation", style="dim")
+        mock_console.print.assert_any_call(
+            "  ⚙️ Assessing implementation feasibility...", style="dim"
+        )
+        mock_console.print.assert_any_call(
+            "  ✅ Analysis complete, processing results...", style="dim"
+        )
+        mock_console.print.assert_any_call(
+            "  🎉 Validation passed - issue is ready for implementation", style="dim"
+        )
 
         # Verify final validation success message
         mock_console.print.assert_any_call("[green]✓ Issue validation passed[/green]")
 
         # Verify result
-        assert result['success'] is True
-        assert result['next_state'] == WorkflowState.AWAITING_APPROVAL.value
+        assert result["success"] is True
+        assert result["next_state"] == WorkflowState.AWAITING_APPROVAL.value
 
-    @patch('devflow.core.workflow_engine.console')
-    def test_validation_stage_fallback_to_non_streaming(self, mock_console, workflow_engine, mock_issue):
+    @patch("devflow.core.workflow_engine.console")
+    def test_validation_stage_fallback_to_non_streaming(
+        self, mock_console, workflow_engine, mock_issue
+    ):
         """Test validation stage fallback to non-streaming when streaming not available."""
         # Create session and context objects
-        from devflow.core.workflow_engine import WorkflowSession, WorkflowState
-        from devflow.agents.base import WorkflowContext
         from datetime import datetime
+
+        from devflow.agents.base import WorkflowContext
+        from devflow.core.workflow_engine import WorkflowSession, WorkflowState
 
         session = WorkflowSession(
             issue_id="test-issue-123",
@@ -491,7 +489,7 @@ class TestWorkflowEngine:
             session_transcript="",
             context_data={},
             created_at=datetime.now(),
-            updated_at=datetime.now()
+            updated_at=datetime.now(),
         )
 
         context = WorkflowContext(
@@ -500,20 +498,24 @@ class TestWorkflowEngine:
             base_branch="main",
             working_directory="/tmp/test",
             issue=mock_issue,
-            maturity_level="early_stage"
+            maturity_level="early_stage",
         )
 
         # Mock agent coordinator to return an agent WITHOUT streaming capability
         mock_agent = Mock()
         # Remove the streaming method to simulate older agent
-        delattr(mock_agent, 'validate_issue_stream') if hasattr(mock_agent, 'validate_issue_stream') else None
+        (
+            delattr(mock_agent, "validate_issue_stream")
+            if hasattr(mock_agent, "validate_issue_stream")
+            else None
+        )
 
         mock_agent.validate_issue.return_value = ValidationResponse(
             success=True,
             message="Validation completed successfully",
             data={},
             result=ValidationResult.VALID,
-            confidence=0.9
+            confidence=0.9,
         )
 
         workflow_engine.agent_coordinator.select_best_agent.return_value = mock_agent
@@ -527,12 +529,15 @@ class TestWorkflowEngine:
         mock_console.print.assert_any_call("[green]✓ Issue validation passed[/green]")
 
         # Should not have any streaming progress messages
-        streaming_calls = [call for call in mock_console.print.call_args_list
-                          if len(call[0]) > 0 and call[0][0].startswith("  ")]
+        streaming_calls = [
+            call
+            for call in mock_console.print.call_args_list
+            if len(call[0]) > 0 and call[0][0].startswith("  ")
+        ]
         assert len(streaming_calls) == 0
 
         # Verify result
-        assert result['success'] is True
+        assert result["success"] is True
 
 
 class TestWorkflowSession:
@@ -552,7 +557,7 @@ class TestWorkflowSession:
             session_transcript="",
             context_data={},
             created_at="2023-01-01T00:00:00",
-            updated_at="2023-01-01T00:00:00"
+            updated_at="2023-01-01T00:00:00",
         )
 
         assert session.issue_number == 123
@@ -573,7 +578,7 @@ class TestWorkflowSession:
             session_transcript="",
             context_data={},
             created_at="2023-01-01T00:00:00",
-            updated_at="2023-01-01T00:00:00"
+            updated_at="2023-01-01T00:00:00",
         )
 
         # Test state progression
@@ -593,10 +598,7 @@ class TestGlobalStatistics:
     def test_statistics_creation(self):
         """Test creating global statistics."""
         stats = GlobalStatistics(
-            total_runs=15,
-            successful_runs=12,
-            failed_runs=3,
-            average_processing_time=450.0
+            total_runs=15, successful_runs=12, failed_runs=3, average_processing_time=450.0
         )
 
         assert stats.total_runs == 15
@@ -607,10 +609,7 @@ class TestGlobalStatistics:
     def test_success_rate_calculation(self):
         """Test success rate calculation."""
         stats = GlobalStatistics(
-            total_runs=10,
-            successful_runs=8,
-            failed_runs=2,
-            average_processing_time=300.0
+            total_runs=10, successful_runs=8, failed_runs=2, average_processing_time=300.0
         )
 
         # Calculate success rate (not implemented in the model but could be)

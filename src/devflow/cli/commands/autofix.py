@@ -25,24 +25,15 @@ def autofix():
 
 
 @autofix.command()
-@click.argument('pr_number', type=int)
+@click.argument("pr_number", type=int)
+@click.option("--max-iterations", default=3, help="Maximum auto-fix iterations", show_default=True)
 @click.option(
-    '--max-iterations',
-    default=3,
-    help='Maximum auto-fix iterations',
-    show_default=True
-)
-@click.option(
-    '--working-dir',
+    "--working-dir",
     type=click.Path(exists=True, file_okay=False),
-    default='.',
-    help='Working directory (default: current directory)'
+    default=".",
+    help="Working directory (default: current directory)",
 )
-@click.option(
-    '--dry-run',
-    is_flag=True,
-    help='Show what would be fixed without making changes'
-)
+@click.option("--dry-run", is_flag=True, help="Show what would be fixed without making changes")
 def pr(pr_number: int, max_iterations: int, working_dir: str, dry_run: bool):
     """Auto-fix issues for a specific pull request.
 
@@ -88,10 +79,7 @@ def pr(pr_number: int, max_iterations: int, working_dir: str, dry_run: bool):
 
             for item in feedback_items:
                 table.add_row(
-                    item.type.value,
-                    item.priority.value,
-                    item.title,
-                    item.file_path or "N/A"
+                    item.type.value, item.priority.value, item.title, item.file_path or "N/A"
                 )
 
             console.print(table)
@@ -120,7 +108,9 @@ def pr(pr_number: int, max_iterations: int, working_dir: str, dry_run: bool):
                 console.print(f"[red]❌ Auto-fix failed: {result.error_message}[/red]")
 
                 if result.fixes_applied:
-                    console.print(f"[yellow]Partial fixes applied: {len(result.fixes_applied)}[/yellow]")
+                    console.print(
+                        f"[yellow]Partial fixes applied: {len(result.fixes_applied)}[/yellow]"
+                    )
                     for fix in result.fixes_applied:
                         console.print(f"  • {fix}")
 
@@ -131,17 +121,12 @@ def pr(pr_number: int, max_iterations: int, working_dir: str, dry_run: bool):
 
 @autofix.command()
 @click.option(
-    '--working-dir',
+    "--working-dir",
     type=click.Path(exists=True, file_okay=False),
-    default='.',
-    help='Working directory (default: current directory)'
+    default=".",
+    help="Working directory (default: current directory)",
 )
-@click.option(
-    '--max-prs',
-    default=10,
-    help='Maximum number of PRs to check',
-    show_default=True
-)
+@click.option("--max-prs", default=10, help="Maximum number of PRs to check", show_default=True)
 def monitor(working_dir: str, max_prs: int):
     """Monitor open PRs and auto-fix any CI failures.
 
@@ -165,9 +150,7 @@ def monitor(working_dir: str, max_prs: int):
         console.print("[blue]Fetching open pull requests...[/blue]")
 
         prs = platform_adapter.list_pull_requests(
-            owner=config.repo_owner,
-            repo=config.repo_name,
-            limit=max_prs
+            owner=config.repo_owner, repo=config.repo_name, limit=max_prs
         )
 
         if not prs:
@@ -190,11 +173,7 @@ def monitor(working_dir: str, max_prs: int):
 
                 if not feedback_items:
                     console.print(f"  [green]✓ No issues found[/green]")
-                    results.append({
-                        'pr': pr.number,
-                        'status': 'clean',
-                        'fixes': 0
-                    })
+                    results.append({"pr": pr.number, "status": "clean", "fixes": 0})
                     continue
 
                 console.print(f"  [yellow]Found {len(feedback_items)} issues[/yellow]")
@@ -204,26 +183,16 @@ def monitor(working_dir: str, max_prs: int):
 
                 if result.success:
                     console.print(f"  [green]✅ Applied {len(result.fixes_applied)} fixes[/green]")
-                    results.append({
-                        'pr': pr.number,
-                        'status': 'fixed',
-                        'fixes': len(result.fixes_applied)
-                    })
+                    results.append(
+                        {"pr": pr.number, "status": "fixed", "fixes": len(result.fixes_applied)}
+                    )
                 else:
                     console.print(f"  [red]❌ Auto-fix failed[/red]")
-                    results.append({
-                        'pr': pr.number,
-                        'status': 'failed',
-                        'fixes': 0
-                    })
+                    results.append({"pr": pr.number, "status": "failed", "fixes": 0})
 
             except Exception as e:
                 console.print(f"  [red]Error processing PR: {str(e)}[/red]")
-                results.append({
-                    'pr': pr.number,
-                    'status': 'error',
-                    'fixes': 0
-                })
+                results.append({"pr": pr.number, "status": "error", "fixes": 0})
 
         # Summary
         console.print(f"\n[bold]Summary:[/bold]")
@@ -235,21 +204,21 @@ def monitor(working_dir: str, max_prs: int):
 
         for result in results:
             status_color = {
-                'clean': 'green',
-                'fixed': 'green',
-                'failed': 'red',
-                'error': 'red'
-            }.get(result['status'], 'yellow')
+                "clean": "green",
+                "fixed": "green",
+                "failed": "red",
+                "error": "red",
+            }.get(result["status"], "yellow")
 
             table.add_row(
-                str(result['pr']),
+                str(result["pr"]),
                 f"[{status_color}]{result['status']}[/{status_color}]",
-                str(result['fixes'])
+                str(result["fixes"]),
             )
 
         console.print(table)
 
-        total_fixes = sum(r['fixes'] for r in results)
+        total_fixes = sum(r["fixes"] for r in results)
         console.print(f"\n[green]Total fixes applied: {total_fixes}[/green]")
 
     except Exception as e:
@@ -258,12 +227,12 @@ def monitor(working_dir: str, max_prs: int):
 
 
 @autofix.command()
-@click.argument('pr_number', type=int)
+@click.argument("pr_number", type=int)
 @click.option(
-    '--working-dir',
+    "--working-dir",
     type=click.Path(exists=True, file_okay=False),
-    default='.',
-    help='Working directory (default: current directory)'
+    default=".",
+    help="Working directory (default: current directory)",
 )
 def status(pr_number: int, working_dir: str):
     """Check auto-fix status for a pull request.
@@ -293,7 +262,9 @@ def status(pr_number: int, working_dir: str):
             console.print("[green]✅ No issues detected that need auto-fixing[/green]")
             return
 
-        console.print(f"[yellow]Found {len(feedback_items)} issues that can be auto-fixed:[/yellow]")
+        console.print(
+            f"[yellow]Found {len(feedback_items)} issues that can be auto-fixed:[/yellow]"
+        )
 
         # Group by type and priority
         grouped = {}
@@ -304,18 +275,28 @@ def status(pr_number: int, working_dir: str):
             grouped[key].append(item)
 
         for group_key, items in grouped.items():
-            type_val, priority_val = group_key.split('|')
-            console.print(f"\n[bold]{type_val.title()} - {priority_val.title()} Priority ({len(items)} items):[/bold]")
+            type_val, priority_val = group_key.split("|")
+            console.print(
+                f"\n[bold]{type_val.title()} - {priority_val.title()} Priority ({len(items)} items):[/bold]"
+            )
 
             for item in items:
-                location = f" [{item.file_path}:{item.line_number}]" if item.file_path and item.line_number else ""
+                location = (
+                    f" [{item.file_path}:{item.line_number}]"
+                    if item.file_path and item.line_number
+                    else ""
+                )
                 console.print(f"  • {item.title}{location}")
                 if item.description:
-                    console.print(f"    {item.description[:100]}{'...' if len(item.description) > 100 else ''}")
+                    console.print(
+                        f"    {item.description[:100]}{'...' if len(item.description) > 100 else ''}"
+                    )
                 if item.suggestion:
                     console.print(f"    💡 {item.suggestion}")
 
-        console.print(f"\n[blue]💡 Run 'devflow autofix pr {pr_number}' to apply these fixes[/blue]")
+        console.print(
+            f"\n[blue]💡 Run 'devflow autofix pr {pr_number}' to apply these fixes[/blue]"
+        )
 
     except Exception as e:
         console.print(f"[red]Error: {str(e)}[/red]")
@@ -335,10 +316,7 @@ def _load_config(working_dir: str) -> ProjectConfig:
 
 def _create_platform_adapter(config: ProjectConfig) -> GitHubPlatformAdapter:
     """Create and validate platform adapter."""
-    adapter_config = {
-        "repo_owner": config.repo_owner,
-        "repo_name": config.repo_name
-    }
+    adapter_config = {"repo_owner": config.repo_owner, "repo_name": config.repo_name}
 
     adapter = GitHubPlatformAdapter(adapter_config)
 
@@ -349,22 +327,16 @@ def _create_platform_adapter(config: ProjectConfig) -> GitHubPlatformAdapter:
 
 
 def _create_auto_fix_engine(
-    platform_adapter: GitHubPlatformAdapter,
-    config: ProjectConfig,
-    working_dir: str
+    platform_adapter: GitHubPlatformAdapter, config: ProjectConfig, working_dir: str
 ) -> AutoFixEngine:
     """Create auto-fix engine with proper configuration."""
     # Create a mock agent for now - in real usage would use proper agent coordinator
-    agent_config = {
-        "model": config.agents.claude_model,
-        "max_tokens": 8192,
-        "temperature": 0.1
-    }
+    agent_config = {"model": config.agents.claude_model, "max_tokens": 8192, "temperature": 0.1}
 
     claude_agent = ClaudeAgentProvider(agent_config)
 
     return AutoFixEngine(
         platform_adapter=platform_adapter,
         agent_provider=claude_agent,
-        working_directory=working_dir
+        working_directory=working_dir,
     )

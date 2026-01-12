@@ -5,11 +5,11 @@ failure information for the auto-fix system.
 """
 
 import json
-import re
 import logging
+import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 from devflow.core.auto_fix import FeedbackItem, FeedbackType, FixPriority
 
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CIFailure:
     """Represents a specific CI failure with context."""
+
     job_name: str
     step_name: str
     error_type: str
@@ -33,12 +34,12 @@ class GitHubActionsParser:
 
     def __init__(self):
         self.parsers = {
-            'flake8': self._parse_flake8_errors,
-            'black': self._parse_black_errors,
-            'mypy': self._parse_mypy_errors,
-            'pytest': self._parse_pytest_errors,
-            'sphinx': self._parse_sphinx_errors,
-            'isort': self._parse_isort_errors
+            "flake8": self._parse_flake8_errors,
+            "black": self._parse_black_errors,
+            "mypy": self._parse_mypy_errors,
+            "pytest": self._parse_pytest_errors,
+            "sphinx": self._parse_sphinx_errors,
+            "isort": self._parse_isort_errors,
         }
 
     def parse_ci_failures(self, pr_number: int, platform_adapter) -> List[FeedbackItem]:
@@ -65,9 +66,12 @@ class GitHubActionsParser:
 
         try:
             # Get check runs for the PR
-            result = subprocess.run([
-                'gh', 'api', f'/repos/{{owner}}/{{repo}}/pulls/{pr_number}/checks'
-            ], capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                ["gh", "api", f"/repos/{{owner}}/{{repo}}/pulls/{pr_number}/checks"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
 
             if result.returncode != 0:
                 logger.warning(f"Failed to get CI checks: {result.stderr}")
@@ -76,19 +80,19 @@ class GitHubActionsParser:
             data = json.loads(result.stdout)
             failures = []
 
-            for check in data.get('check_runs', []):
-                if check.get('conclusion') == 'failure':
+            for check in data.get("check_runs", []):
+                if check.get("conclusion") == "failure":
                     failure_data = {
-                        'name': check.get('name', ''),
-                        'status': 'failure',
-                        'log_url': check.get('details_url', ''),
-                        'output': check.get('output', {})
+                        "name": check.get("name", ""),
+                        "status": "failure",
+                        "log_url": check.get("details_url", ""),
+                        "output": check.get("output", {}),
                     }
 
                     # Try to get the actual log content
-                    if check.get('id'):
-                        log_content = self._get_check_log(check['id'])
-                        failure_data['log'] = log_content
+                    if check.get("id"):
+                        log_content = self._get_check_log(check["id"])
+                        failure_data["log"] = log_content
 
                     failures.append(failure_data)
 
@@ -108,13 +112,17 @@ class GitHubActionsParser:
         """Get detailed log for a specific check run."""
         try:
             import subprocess
-            result = subprocess.run([
-                'gh', 'api', f'/repos/{{owner}}/{{repo}}/check-runs/{check_id}/annotations'
-            ], capture_output=True, text=True, timeout=30)
+
+            result = subprocess.run(
+                ["gh", "api", f"/repos/{{owner}}/{{repo}}/check-runs/{check_id}/annotations"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
 
             if result.returncode == 0:
                 annotations = json.loads(result.stdout)
-                return '\n'.join(ann.get('message', '') for ann in annotations)
+                return "\n".join(ann.get("message", "") for ann in annotations)
 
         except Exception as e:
             logger.debug(f"Could not get check log for {check_id}: {e}")
@@ -123,8 +131,8 @@ class GitHubActionsParser:
 
     def _parse_failure(self, failure: Dict) -> List[FeedbackItem]:
         """Parse a specific CI failure into feedback items."""
-        job_name = failure.get('name', '').lower()
-        log_content = failure.get('log', '')
+        job_name = failure.get("name", "").lower()
+        log_content = failure.get("log", "")
 
         feedback_items = []
 
@@ -148,26 +156,28 @@ class GitHubActionsParser:
         items = []
 
         # Pattern: ./src/devflow/core/workflow_engine.py:1054:80: E501 line too long
-        flake8_pattern = r'(.+?):(\d+):(\d+): ([A-Z]\d+) (.+)'
+        flake8_pattern = r"(.+?):(\d+):(\d+): ([A-Z]\d+) (.+)"
 
         for match in re.finditer(flake8_pattern, log_content):
             file_path, line_num, col_num, error_code, message = match.groups()
 
             # Determine priority based on error code
-            priority = FixPriority.HIGH if error_code.startswith('E9') else FixPriority.MEDIUM
-            if error_code.startswith('W'):
+            priority = FixPriority.HIGH if error_code.startswith("E9") else FixPriority.MEDIUM
+            if error_code.startswith("W"):
                 priority = FixPriority.LOW
 
-            items.append(FeedbackItem(
-                type=FeedbackType.CI_FAILURE,
-                priority=priority,
-                title=f"Linting Error: {error_code}",
-                description=f"{message} (Line {line_num}:{col_num})",
-                file_path=file_path.strip('./'),
-                line_number=int(line_num),
-                suggestion=self._get_flake8_fix_suggestion(error_code, message),
-                raw_data={'failure': failure, 'error_code': error_code}
-            ))
+            items.append(
+                FeedbackItem(
+                    type=FeedbackType.CI_FAILURE,
+                    priority=priority,
+                    title=f"Linting Error: {error_code}",
+                    description=f"{message} (Line {line_num}:{col_num})",
+                    file_path=file_path.strip("./"),
+                    line_number=int(line_num),
+                    suggestion=self._get_flake8_fix_suggestion(error_code, message),
+                    raw_data={"failure": failure, "error_code": error_code},
+                )
+            )
 
         return items
 
@@ -176,31 +186,35 @@ class GitHubActionsParser:
         items = []
 
         # Black outputs "would reformat" lines for files that need formatting
-        black_pattern = r'would reformat (.+)'
+        black_pattern = r"would reformat (.+)"
 
         for match in re.finditer(black_pattern, log_content):
             file_path = match.group(1)
 
-            items.append(FeedbackItem(
-                type=FeedbackType.CI_FAILURE,
-                priority=FixPriority.MEDIUM,
-                title="Code Formatting Issue",
-                description=f"File needs reformatting with black: {file_path}",
-                file_path=file_path,
-                suggestion=f"Run 'black {file_path}' to fix formatting",
-                raw_data={'failure': failure}
-            ))
+            items.append(
+                FeedbackItem(
+                    type=FeedbackType.CI_FAILURE,
+                    priority=FixPriority.MEDIUM,
+                    title="Code Formatting Issue",
+                    description=f"File needs reformatting with black: {file_path}",
+                    file_path=file_path,
+                    suggestion=f"Run 'black {file_path}' to fix formatting",
+                    raw_data={"failure": failure},
+                )
+            )
 
         # Check for specific formatting errors
-        if "error:" in log_content.lower() and "black" in failure.get('name', '').lower():
-            items.append(FeedbackItem(
-                type=FeedbackType.CI_FAILURE,
-                priority=FixPriority.MEDIUM,
-                title="Black Formatting Error",
-                description="Black encountered an error during formatting",
-                suggestion="Check file syntax and black configuration",
-                raw_data={'failure': failure, 'log': log_content}
-            ))
+        if "error:" in log_content.lower() and "black" in failure.get("name", "").lower():
+            items.append(
+                FeedbackItem(
+                    type=FeedbackType.CI_FAILURE,
+                    priority=FixPriority.MEDIUM,
+                    title="Black Formatting Error",
+                    description="Black encountered an error during formatting",
+                    suggestion="Check file syntax and black configuration",
+                    raw_data={"failure": failure, "log": log_content},
+                )
+            )
 
         return items
 
@@ -209,23 +223,25 @@ class GitHubActionsParser:
         items = []
 
         # Pattern: src/devflow/core/workflow.py:45: error: Argument 1 to "func" has incompatible type
-        mypy_pattern = r'(.+?):(\d+): (error|warning): (.+)'
+        mypy_pattern = r"(.+?):(\d+): (error|warning): (.+)"
 
         for match in re.finditer(mypy_pattern, log_content):
             file_path, line_num, severity, message = match.groups()
 
-            priority = FixPriority.HIGH if severity == 'error' else FixPriority.MEDIUM
+            priority = FixPriority.HIGH if severity == "error" else FixPriority.MEDIUM
 
-            items.append(FeedbackItem(
-                type=FeedbackType.CI_FAILURE,
-                priority=priority,
-                title=f"Type Error: {severity.title()}",
-                description=message,
-                file_path=file_path,
-                line_number=int(line_num),
-                suggestion=self._get_mypy_fix_suggestion(message),
-                raw_data={'failure': failure, 'severity': severity}
-            ))
+            items.append(
+                FeedbackItem(
+                    type=FeedbackType.CI_FAILURE,
+                    priority=priority,
+                    title=f"Type Error: {severity.title()}",
+                    description=message,
+                    file_path=file_path,
+                    line_number=int(line_num),
+                    suggestion=self._get_mypy_fix_suggestion(message),
+                    raw_data={"failure": failure, "severity": severity},
+                )
+            )
 
         return items
 
@@ -234,31 +250,35 @@ class GitHubActionsParser:
         items = []
 
         # Pattern: FAILED tests/test_file.py::test_function - AssertionError: message
-        pytest_failure_pattern = r'FAILED (.+?)::(.+?) - (.+)'
+        pytest_failure_pattern = r"FAILED (.+?)::(.+?) - (.+)"
 
         for match in re.finditer(pytest_failure_pattern, log_content):
             file_path, test_name, error_message = match.groups()
 
-            items.append(FeedbackItem(
-                type=FeedbackType.CI_FAILURE,
-                priority=FixPriority.HIGH,
-                title=f"Test Failure: {test_name}",
-                description=error_message,
-                file_path=file_path,
-                suggestion=f"Fix the failing test: {test_name}",
-                raw_data={'failure': failure, 'test_name': test_name}
-            ))
+            items.append(
+                FeedbackItem(
+                    type=FeedbackType.CI_FAILURE,
+                    priority=FixPriority.HIGH,
+                    title=f"Test Failure: {test_name}",
+                    description=error_message,
+                    file_path=file_path,
+                    suggestion=f"Fix the failing test: {test_name}",
+                    raw_data={"failure": failure, "test_name": test_name},
+                )
+            )
 
         # Parse test collection errors
         if "collection failed" in log_content.lower():
-            items.append(FeedbackItem(
-                type=FeedbackType.CI_FAILURE,
-                priority=FixPriority.CRITICAL,
-                title="Test Collection Failed",
-                description="Tests cannot be collected due to syntax or import errors",
-                suggestion="Check for syntax errors and import issues in test files",
-                raw_data={'failure': failure}
-            ))
+            items.append(
+                FeedbackItem(
+                    type=FeedbackType.CI_FAILURE,
+                    priority=FixPriority.CRITICAL,
+                    title="Test Collection Failed",
+                    description="Tests cannot be collected due to syntax or import errors",
+                    suggestion="Check for syntax errors and import issues in test files",
+                    raw_data={"failure": failure},
+                )
+            )
 
         return items
 
@@ -267,16 +287,18 @@ class GitHubActionsParser:
         items = []
 
         # Pattern: WARNING: autodoc: failed to import module 'module_name'
-        if "sphinx" in failure.get('name', '').lower():
+        if "sphinx" in failure.get("name", "").lower():
             if "warning" in log_content.lower() or "error" in log_content.lower():
-                items.append(FeedbackItem(
-                    type=FeedbackType.CI_FAILURE,
-                    priority=FixPriority.MEDIUM,
-                    title="Documentation Build Issue",
-                    description="Sphinx documentation build encountered issues",
-                    suggestion="Check for missing docstrings or broken documentation links",
-                    raw_data={'failure': failure}
-                ))
+                items.append(
+                    FeedbackItem(
+                        type=FeedbackType.CI_FAILURE,
+                        priority=FixPriority.MEDIUM,
+                        title="Documentation Build Issue",
+                        description="Sphinx documentation build encountered issues",
+                        suggestion="Check for missing docstrings or broken documentation links",
+                        raw_data={"failure": failure},
+                    )
+                )
 
         return items
 
@@ -286,14 +308,16 @@ class GitHubActionsParser:
 
         # isort outputs files that would be reformatted
         if "fixing" in log_content.lower() or "import" in log_content.lower():
-            items.append(FeedbackItem(
-                type=FeedbackType.CI_FAILURE,
-                priority=FixPriority.MEDIUM,
-                title="Import Sorting Issue",
-                description="Import statements need to be sorted",
-                suggestion="Run 'isort .' to fix import sorting",
-                raw_data={'failure': failure}
-            ))
+            items.append(
+                FeedbackItem(
+                    type=FeedbackType.CI_FAILURE,
+                    priority=FixPriority.MEDIUM,
+                    title="Import Sorting Issue",
+                    description="Import statements need to be sorted",
+                    suggestion="Run 'isort .' to fix import sorting",
+                    raw_data={"failure": failure},
+                )
+            )
 
         return items
 
@@ -301,31 +325,33 @@ class GitHubActionsParser:
         """Parse generic CI failures when no specific parser applies."""
         items = []
 
-        job_name = failure.get('name', 'Unknown')
+        job_name = failure.get("name", "Unknown")
 
-        items.append(FeedbackItem(
-            type=FeedbackType.CI_FAILURE,
-            priority=FixPriority.HIGH,
-            title=f"CI Failure: {job_name}",
-            description=f"Job '{job_name}' failed - check logs for details",
-            suggestion="Review the CI logs and fix the underlying issue",
-            raw_data={'failure': failure, 'log_content': log_content[:500]}
-        ))
+        items.append(
+            FeedbackItem(
+                type=FeedbackType.CI_FAILURE,
+                priority=FixPriority.HIGH,
+                title=f"CI Failure: {job_name}",
+                description=f"Job '{job_name}' failed - check logs for details",
+                suggestion="Review the CI logs and fix the underlying issue",
+                raw_data={"failure": failure, "log_content": log_content[:500]},
+            )
+        )
 
         return items
 
     def _get_flake8_fix_suggestion(self, error_code: str, message: str) -> str:
         """Get specific fix suggestion for flake8 error codes."""
         suggestions = {
-            'E501': "Break the long line using parentheses, backslashes, or split into multiple statements",
-            'E302': "Add two blank lines before the class or function definition",
-            'E303': "Remove the extra blank lines",
-            'E231': "Add whitespace after comma, colon, or semicolon",
-            'E225': "Add whitespace around operator",
-            'F401': "Remove the unused import or add '# noqa: F401' if intentionally unused",
-            'F841': "Use the variable or remove it if not needed",
-            'W503': "Break before binary operator instead of after",
-            'E711': "Use 'is' or 'is not' instead of '==' or '!=' with None/True/False"
+            "E501": "Break the long line using parentheses, backslashes, or split into multiple statements",
+            "E302": "Add two blank lines before the class or function definition",
+            "E303": "Remove the extra blank lines",
+            "E231": "Add whitespace after comma, colon, or semicolon",
+            "E225": "Add whitespace around operator",
+            "F401": "Remove the unused import or add '# noqa: F401' if intentionally unused",
+            "F841": "Use the variable or remove it if not needed",
+            "W503": "Break before binary operator instead of after",
+            "E711": "Use 'is' or 'is not' instead of '==' or '!=' with None/True/False",
         }
 
         base_suggestion = suggestions.get(error_code, "Fix the linting issue")

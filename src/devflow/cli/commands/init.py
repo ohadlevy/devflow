@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Optional
 
-from devflow.core.config import ProjectConfig, ProjectMaturity, PlatformConfig
+from devflow.core.config import PlatformConfig, ProjectConfig, ProjectMaturity
 from devflow.exceptions import ConfigurationError, ValidationError
 
 
@@ -12,7 +12,7 @@ def initialize_project(
     maturity_level: str = "early_stage",
     platform: str = "github",
     force: bool = False,
-    config_file: Optional[Path] = None
+    config_file: Optional[Path] = None,
 ) -> ProjectConfig:
     """Initialize a new DevFlow project.
 
@@ -40,7 +40,9 @@ def initialize_project(
     # Validate maturity level
     if maturity_level not in ProjectMaturity.get_all_levels():
         valid_levels = ", ".join(ProjectMaturity.get_all_levels())
-        raise ValidationError(f"Invalid maturity level: {maturity_level}. Valid levels: {valid_levels}")
+        raise ValidationError(
+            f"Invalid maturity level: {maturity_level}. Valid levels: {valid_levels}"
+        )
 
     # Determine config file path
     if not config_file:
@@ -69,7 +71,7 @@ def initialize_project(
         maturity_level=ProjectMaturity(maturity_level),
         platforms=PlatformConfig(primary=platform),
         repo_owner=repo_owner,
-        repo_name=repo_name or project_name
+        repo_name=repo_name or project_name,
     )
 
     # Save configuration

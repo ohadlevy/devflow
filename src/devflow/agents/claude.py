@@ -15,13 +15,13 @@ from devflow.agents.base import (
     ImplementationContext,
     ImplementationResponse,
     ImplementationResult,
+    IssueSeverity,
     ReviewContext,
-    ReviewResponse,
     ReviewDecision,
+    ReviewResponse,
     ValidationContext,
     ValidationResponse,
     ValidationResult,
-    IssueSeverity
 )
 from devflow.exceptions import AgentError
 
@@ -69,7 +69,7 @@ class ClaudeAgentProvider(AgentProvider):
             AgentCapability.VALIDATION,
             AgentCapability.IMPLEMENTATION,
             AgentCapability.REVIEW,
-            AgentCapability.ANALYSIS
+            AgentCapability.ANALYSIS,
         ]
 
     @property
@@ -83,27 +83,19 @@ class ClaudeAgentProvider(AgentProvider):
             # Check if Claude Code CLI is available
             try:
                 result = subprocess.run(
-                    ["claude", "--version"],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                    timeout=10
+                    ["claude", "--version"], capture_output=True, text=True, check=False, timeout=10
                 )
                 if result.returncode != 0:
                     raise AgentError(
                         "Claude Code CLI not found. Install from: https://claude.com/claude-code",
-                        agent_type=self.name
+                        agent_type=self.name,
                     )
             except (subprocess.TimeoutExpired, FileNotFoundError):
-                raise AgentError(
-                    "Claude Code CLI not available",
-                    agent_type=self.name
-                )
+                raise AgentError("Claude Code CLI not available", agent_type=self.name)
         else:
             if not self.api_key:
                 raise AgentError(
-                    "Claude API key required when not using Claude Code CLI",
-                    agent_type=self.name
+                    "Claude API key required when not using Claude Code CLI", agent_type=self.name
                 )
 
     def validate_connection(self) -> bool:
@@ -119,11 +111,7 @@ class ClaudeAgentProvider(AgentProvider):
             try:
                 # Test basic Claude Code CLI functionality
                 result = subprocess.run(
-                    ["claude", "--help"],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                    timeout=10
+                    ["claude", "--help"], capture_output=True, text=True, check=True, timeout=10
                 )
                 return result.returncode == 0
             except Exception as e:
@@ -134,10 +122,7 @@ class ClaudeAgentProvider(AgentProvider):
             return True
 
     def _run_claude_command(
-        self,
-        prompt: str,
-        context_files: List[str] = None,
-        timeout: int = 300
+        self, prompt: str, context_files: List[str] = None, timeout: int = 300
     ) -> str:
         """Run Claude Code CLI command.
 
@@ -162,11 +147,7 @@ class ClaudeAgentProvider(AgentProvider):
             args.append(prompt)
 
             result = subprocess.run(
-                args,
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=timeout
+                args, capture_output=True, text=True, check=True, timeout=timeout
             )
 
             return result.stdout
@@ -177,18 +158,14 @@ class ClaudeAgentProvider(AgentProvider):
 
         except subprocess.TimeoutExpired as e:
             raise AgentError(
-                f"Claude command timed out after {timeout}s",
-                agent_type=self.name
+                f"Claude command timed out after {timeout}s", agent_type=self.name
             ) from e
 
         except Exception as e:
             raise AgentError(f"Claude execution failed: {str(e)}") from e
 
     def _run_claude_command_stream(
-        self,
-        prompt: str,
-        context_files: List[str] = None,
-        timeout: int = 300
+        self, prompt: str, context_files: List[str] = None, timeout: int = 300
     ) -> Generator[str, None, str]:
         """Run Claude Code CLI command with streaming output.
 
@@ -222,7 +199,7 @@ class ClaudeAgentProvider(AgentProvider):
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,  # Line buffered
-                universal_newlines=True
+                universal_newlines=True,
             )
 
             output_lines = []
@@ -238,17 +215,17 @@ class ClaudeAgentProvider(AgentProvider):
                         continue
 
                     output_lines.append(line)
-                    yield line.rstrip('\n\r')
+                    yield line.rstrip("\n\r")
 
                 # Wait for process to complete and get final status
                 stdout, stderr = process.communicate(timeout=timeout)
 
                 # Add any remaining stdout content
                 if stdout:
-                    remaining_lines = stdout.split('\n')
+                    remaining_lines = stdout.split("\n")
                     for line in remaining_lines:
                         if line.strip():  # Skip empty lines
-                            output_lines.append(line + '\n')
+                            output_lines.append(line + "\n")
                             yield line
 
                 if process.returncode != 0:
@@ -257,7 +234,7 @@ class ClaudeAgentProvider(AgentProvider):
                     raise AgentError(error_msg, agent_type=self.name)
 
                 # Return complete response
-                return ''.join(output_lines)
+                return "".join(output_lines)
 
             except subprocess.TimeoutExpired:
                 process.kill()
@@ -301,7 +278,7 @@ class ClaudeAgentProvider(AgentProvider):
                 result=result,
                 confidence=confidence,
                 suggested_labels=self._extract_suggested_labels(response_text),
-                reasoning="Claude analysis of issue requirements and feasibility"
+                reasoning="Claude analysis of issue requirements and feasibility",
             )
 
         except Exception as e:
@@ -310,7 +287,7 @@ class ClaudeAgentProvider(AgentProvider):
                 message=f"Validation failed: {str(e)}",
                 data={"error": str(e)},
                 result=ValidationResult.INVALID,
-                confidence=0.0
+                confidence=0.0,
             )
 
     def _validate_issue_stream_impl(self, context: ValidationContext) -> Generator[str, None, None]:
@@ -373,7 +350,7 @@ class ClaudeAgentProvider(AgentProvider):
                 data={"raw_response": full_response},
                 result=result,
                 confidence=confidence,
-                reasoning="Claude analysis of issue requirements and feasibility"
+                reasoning="Claude analysis of issue requirements and feasibility",
             )
 
         except Exception as e:
@@ -384,7 +361,7 @@ class ClaudeAgentProvider(AgentProvider):
                 message=f"Validation failed: {str(e)}",
                 data={"error": str(e)},
                 result=ValidationResult.INVALID,
-                confidence=0.0
+                confidence=0.0,
             )
 
     def _build_validation_prompt(self, context: ValidationContext) -> str:
@@ -464,9 +441,7 @@ Be thorough but concise. Focus on actionable technical details that would help a
         return prompt
 
     def _parse_validation_response(
-        self,
-        response_text: str,
-        context: ValidationContext
+        self, response_text: str, context: ValidationContext
     ) -> ValidationResult:
         """Parse Claude's validation response."""
         # Look for structured decision markers
@@ -475,15 +450,19 @@ Be thorough but concise. Focus on actionable technical details that would help a
         # Check for explicit validation result
         if "validation: valid" in response_lower or "result: valid" in response_lower:
             return ValidationResult.VALID
-        elif ("validation: needs_clarification" in response_lower or
-              "needs clarification" in response_lower or
-              "unclear" in response_lower or
-              "ambiguous" in response_lower):
+        elif (
+            "validation: needs_clarification" in response_lower
+            or "needs clarification" in response_lower
+            or "unclear" in response_lower
+            or "ambiguous" in response_lower
+        ):
             return ValidationResult.NEEDS_CLARIFICATION
-        elif ("validation: invalid" in response_lower or
-              "result: invalid" in response_lower or
-              "cannot implement" in response_lower or
-              "insufficient information" in response_lower):
+        elif (
+            "validation: invalid" in response_lower
+            or "result: invalid" in response_lower
+            or "cannot implement" in response_lower
+            or "insufficient information" in response_lower
+        ):
             return ValidationResult.INVALID
 
         # Fallback: analyze content sentiment
@@ -523,7 +502,7 @@ Be thorough but concise. Focus on actionable technical details that would help a
                 message=response_text,
                 data={"raw_response": response_text},
                 result=result,
-                confidence=confidence
+                confidence=confidence,
             )
 
         except Exception as e:
@@ -532,17 +511,17 @@ Be thorough but concise. Focus on actionable technical details that would help a
                 message=f"Implementation failed: {str(e)}",
                 data={"error": str(e)},
                 result=ImplementationResult.FAILED,
-                confidence=0.0
+                confidence=0.0,
             )
 
     def _build_implementation_prompt(self, context: ImplementationContext) -> str:
         """Build implementation prompt."""
         issue = context.issue
         constraints = context.constraints
-        maturity = getattr(context, 'maturity_level', 'early_stage')
+        maturity = getattr(context, "maturity_level", "early_stage")
 
         # Check if this is auto-fix mode
-        is_auto_fix = context.project_context.get('auto_fix_mode', False)
+        is_auto_fix = context.project_context.get("auto_fix_mode", False)
 
         if is_auto_fix:
             prompt = f"""You are an expert software developer applying auto-fixes based on CI failures and review feedback.
@@ -635,7 +614,7 @@ Focus on creating a complete, working solution that passes all existing tests an
 
         formatted = []
         for i, attempt in enumerate(previous_iterations[:3], 1):  # Show last 3 attempts
-            attempt_info = getattr(attempt, 'summary', str(attempt)[:100])
+            attempt_info = getattr(attempt, "summary", str(attempt)[:100])
             formatted.append(f"Attempt {i}: {attempt_info}")
 
         return "\n".join(formatted)
@@ -645,31 +624,58 @@ Focus on creating a complete, working solution that passes all existing tests an
         response_lower = response_text.lower()
 
         # Check for explicit status indicators
-        if ("implementation: success" in response_lower or
-            "status: success" in response_lower or
-            "implementation complete" in response_lower):
+        if (
+            "implementation: success" in response_lower
+            or "status: success" in response_lower
+            or "implementation complete" in response_lower
+        ):
             return ImplementationResult.SUCCESS
-        elif ("implementation: failed" in response_lower or
-              "status: failed" in response_lower or
-              "implementation failed" in response_lower):
+        elif (
+            "implementation: failed" in response_lower
+            or "status: failed" in response_lower
+            or "implementation failed" in response_lower
+        ):
             return ImplementationResult.FAILED
-        elif ("implementation: partial" in response_lower or
-              "status: partial" in response_lower or
-              "partially implemented" in response_lower):
+        elif (
+            "implementation: partial" in response_lower
+            or "status: partial" in response_lower
+            or "partially implemented" in response_lower
+        ):
             return ImplementationResult.PARTIAL
 
         # Analyze implementation indicators
         success_indicators = [
-            "created", "added", "implemented", "modified", "updated", "fixed",
-            "completed", "successful", "working", "tests pass"
+            "created",
+            "added",
+            "implemented",
+            "modified",
+            "updated",
+            "fixed",
+            "completed",
+            "successful",
+            "working",
+            "tests pass",
         ]
         failure_indicators = [
-            "error", "failed", "exception", "cannot", "unable", "missing",
-            "broken", "syntax error", "import error", "tests fail"
+            "error",
+            "failed",
+            "exception",
+            "cannot",
+            "unable",
+            "missing",
+            "broken",
+            "syntax error",
+            "import error",
+            "tests fail",
         ]
         partial_indicators = [
-            "partial", "incomplete", "partially", "some issues", "work in progress",
-            "needs more", "additional work"
+            "partial",
+            "incomplete",
+            "partially",
+            "some issues",
+            "work in progress",
+            "needs more",
+            "additional work",
         ]
 
         success_count = sum(1 for indicator in success_indicators if indicator in response_lower)
@@ -714,7 +720,7 @@ Focus on creating a complete, working solution that passes all existing tests an
                 data={"raw_response": response_text},
                 decision=decision,
                 severity=severity,
-                confidence=confidence
+                confidence=confidence,
             )
 
         except Exception as e:
@@ -724,7 +730,7 @@ Focus on creating a complete, working solution that passes all existing tests an
                 data={"error": str(e)},
                 decision=ReviewDecision.COMMENT,
                 severity=IssueSeverity.INFO,
-                confidence=0.0
+                confidence=0.0,
             )
 
     def _build_review_prompt(self, context: ReviewContext) -> str:
@@ -824,7 +830,7 @@ Be thorough but constructive. Focus on maintainability, security, and correctnes
             "prototype": "- Focus on functionality over perfection\n- Allow experimental patterns\n- Basic error handling sufficient",
             "early_stage": "- Require good error handling\n- Encourage best practices\n- Moderate test coverage expected",
             "stable": "- Strict adherence to conventions\n- Comprehensive testing required\n- Breaking changes need justification",
-            "mature": "- Zero tolerance for regressions\n- Comprehensive documentation required\n- Performance impact analysis mandatory"
+            "mature": "- Zero tolerance for regressions\n- Comprehensive documentation required\n- Performance impact analysis mandatory",
         }
         return standards.get(maturity, standards["early_stage"])
 
@@ -839,44 +845,60 @@ Suggestion: [how to fix]
 [Repeat for each issue found, or write "No significant issues found"]"""
 
     def _parse_review_response(
-        self,
-        response_text: str,
-        context: ReviewContext
+        self, response_text: str, context: ReviewContext
     ) -> tuple[ReviewDecision, IssueSeverity]:
         """Parse review response."""
         response_lower = response_text.lower()
 
         # Parse decision
         decision = ReviewDecision.COMMENT  # default
-        if ("decision: approve" in response_lower or
-            "approve" in response_lower and "lgtm" in response_lower):
+        if (
+            "decision: approve" in response_lower
+            or "approve" in response_lower
+            and "lgtm" in response_lower
+        ):
             decision = ReviewDecision.APPROVE
-        elif ("decision: request_changes" in response_lower or
-              "request changes" in response_lower or
-              "needs changes" in response_lower or
-              "must fix" in response_lower):
+        elif (
+            "decision: request_changes" in response_lower
+            or "request changes" in response_lower
+            or "needs changes" in response_lower
+            or "must fix" in response_lower
+        ):
             decision = ReviewDecision.REQUEST_CHANGES
-        elif ("decision: comment" in response_lower or
-              "minor issues" in response_lower or
-              "suggestions" in response_lower):
+        elif (
+            "decision: comment" in response_lower
+            or "minor issues" in response_lower
+            or "suggestions" in response_lower
+        ):
             decision = ReviewDecision.COMMENT
 
         # Parse severity - look for explicit markers first
         severity = IssueSeverity.INFO  # default
-        if ("severity: critical" in response_lower or
-            "critical" in response_lower and ("bug" in response_lower or "security" in response_lower)):
+        if (
+            "severity: critical" in response_lower
+            or "critical" in response_lower
+            and ("bug" in response_lower or "security" in response_lower)
+        ):
             severity = IssueSeverity.CRITICAL
-        elif ("severity: high" in response_lower or
-              ("high" in response_lower and "priority" in response_lower) or
-              "breaking change" in response_lower):
+        elif (
+            "severity: high" in response_lower
+            or ("high" in response_lower and "priority" in response_lower)
+            or "breaking change" in response_lower
+        ):
             severity = IssueSeverity.HIGH
-        elif ("severity: medium" in response_lower or
-              ("medium" in response_lower and "priority" in response_lower) or
-              "performance" in response_lower or "maintainability" in response_lower):
+        elif (
+            "severity: medium" in response_lower
+            or ("medium" in response_lower and "priority" in response_lower)
+            or "performance" in response_lower
+            or "maintainability" in response_lower
+        ):
             severity = IssueSeverity.MEDIUM
-        elif ("severity: low" in response_lower or
-              ("low" in response_lower and "priority" in response_lower) or
-              "style" in response_lower or "formatting" in response_lower):
+        elif (
+            "severity: low" in response_lower
+            or ("low" in response_lower and "priority" in response_lower)
+            or "style" in response_lower
+            or "formatting" in response_lower
+        ):
             severity = IssueSeverity.LOW
 
         # Auto-determine severity based on decision if not explicit
@@ -911,15 +933,27 @@ Suggestion: [how to fix]
 
         # Look for structured response indicators
         if operation_type == "validation":
-            structure_indicators = ["validation:", "analysis:", "complexity:", "implementation_approach:"]
+            structure_indicators = [
+                "validation:",
+                "analysis:",
+                "complexity:",
+                "implementation_approach:",
+            ]
         elif operation_type == "implementation":
-            structure_indicators = ["implementation:", "files_changed:", "tests_added:", "validation:"]
+            structure_indicators = [
+                "implementation:",
+                "files_changed:",
+                "tests_added:",
+                "validation:",
+            ]
         elif operation_type == "review":
             structure_indicators = ["decision:", "severity:", "summary:", "detailed_feedback:"]
         else:
             structure_indicators = []
 
-        structure_score = sum(1 for indicator in structure_indicators if indicator in response_lower)
+        structure_score = sum(
+            1 for indicator in structure_indicators if indicator in response_lower
+        )
         confidence += min(structure_score * 0.05, 0.2)
 
         # Check for certainty language
@@ -933,7 +967,16 @@ Suggestion: [how to fix]
         confidence -= min(uncertain_count * 0.02, 0.1)
 
         # Check for technical detail level
-        technical_terms = ["function", "method", "class", "import", "test", "file", "error", "exception"]
+        technical_terms = [
+            "function",
+            "method",
+            "class",
+            "import",
+            "test",
+            "file",
+            "error",
+            "exception",
+        ]
         technical_count = sum(1 for term in technical_terms if term in response_lower)
         confidence += min(technical_count * 0.01, 0.1)
 
@@ -949,23 +992,25 @@ Suggestion: [how to fix]
         for config_file in config_files:
             try:
                 from pathlib import Path
+
                 if Path(config_file).exists():
                     context_files.append(config_file)
             except Exception:
                 pass
 
         # Add relevant source files based on context
-        if hasattr(context, 'issue') and context.issue:
+        if hasattr(context, "issue") and context.issue:
             # Try to infer relevant files from issue description
             issue_text = f"{context.issue.title} {context.issue.body}".lower()
 
             # Look for file mentions
             import re
+
             file_patterns = [
-                r'(\w+\.py)',
-                r'(\w+/\w+\.py)',
-                r'(src/\w+/\w+\.py)',
-                r'(tests/\w+\.py)'
+                r"(\w+\.py)",
+                r"(\w+/\w+\.py)",
+                r"(src/\w+/\w+\.py)",
+                r"(tests/\w+\.py)",
             ]
 
             for pattern in file_patterns:
@@ -974,6 +1019,7 @@ Suggestion: [how to fix]
 
         # Limit total context files to avoid overwhelming Claude
         return context_files[:10]
+
     # Test compatibility methods
     def _call_claude_code(self, prompt: str, **kwargs) -> str:
         """Test compatibility wrapper around _run_claude_command."""
@@ -982,13 +1028,14 @@ Suggestion: [how to fix]
     def _extract_suggested_labels(self, response_text: str) -> List[str]:
         """Extract suggested labels from the response text."""
         import re
+
         labels = []
-        
+
         # Look for "Labels:" followed by comma-separated labels
-        labels_match = re.search(r'labels:\s*([^\n]+)', response_text.lower())
+        labels_match = re.search(r"labels:\s*([^\n]+)", response_text.lower())
         if labels_match:
             labels_text = labels_match.group(1).strip()
             # Split by comma and clean up
-            labels = [label.strip() for label in labels_text.split(',') if label.strip()]
-        
+            labels = [label.strip() for label in labels_text.split(",") if label.strip()]
+
         return labels
