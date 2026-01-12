@@ -63,14 +63,20 @@ class TestGitHubPlatformAdapter:
     @patch("subprocess.run")
     def test_validate_connection_success(self, mock_run, adapter):
         """Test successful connection validation."""
-        # Mock successful gh auth status
+        # Mock successful gh auth status and repo access
         mock_run.return_value = Mock(returncode=0, stdout="github.com\n")
 
         result = adapter.validate_connection()
         assert result is True
 
-        mock_run.assert_called_once_with(
-            ["gh", "auth", "status"], capture_output=True, text=True, check=False
+        # Should call both auth status and repo view
+        assert mock_run.call_count == 2
+        mock_run.assert_any_call(
+            ["gh", "auth", "status"], capture_output=True, text=True, check=False, timeout=30
+        )
+        mock_run.assert_any_call(
+            ["gh", "repo", "view", "test-owner/test-repo", "--json", "name"],
+            capture_output=True, text=True, check=False, timeout=30
         )
 
     @patch("subprocess.run")
@@ -79,8 +85,9 @@ class TestGitHubPlatformAdapter:
         # Mock failed gh auth status
         mock_run.return_value = Mock(returncode=1, stderr="Not logged in")
 
-        result = adapter.validate_connection()
-        assert result is False
+        # Expect a PlatformError to be raised, not False returned
+        with pytest.raises(PlatformError, match="GitHub CLI not authenticated"):
+            adapter.validate_connection()
 
     def test_adapter_configuration(self, adapter_config):
         """Test adapter configuration."""
