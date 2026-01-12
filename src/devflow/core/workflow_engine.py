@@ -13,6 +13,9 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from devflow.core.state_manager import StateManager
 
 from rich.console import Console
 from rich.panel import Panel

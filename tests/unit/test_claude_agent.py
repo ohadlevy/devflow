@@ -100,7 +100,7 @@ class TestClaudeAgentProvider:
         """Test context size property."""
         assert agent.max_context_size == 200000
 
-    @patch('subprocess.run')
+    @patch('devflow.agents.claude.subprocess.run')
     def test_validate_connection_success(self, mock_run, agent):
         """Test successful connection validation."""
         # Mock successful Claude Code call
@@ -112,7 +112,7 @@ class TestClaudeAgentProvider:
         result = agent.validate_connection()
         assert result is True
 
-    @patch('subprocess.run')
+    @patch('devflow.agents.claude.subprocess.run')
     def test_validate_connection_failure(self, mock_run, agent):
         """Test failed connection validation."""
         # Mock failed Claude Code call
@@ -121,7 +121,7 @@ class TestClaudeAgentProvider:
         result = agent.validate_connection()
         assert result is False
 
-    @patch('subprocess.run')
+    @patch('devflow.agents.claude.subprocess.run')
     def test_validate_issue_success(self, mock_run, agent, mock_issue):
         """Test successful issue validation."""
         mock_response = '''
@@ -361,7 +361,7 @@ class TestClaudeAgentProvider:
         assert result["project_name"] == "test-project"
         assert "README.md" in result["files_generated"]
 
-    @patch('subprocess.run')
+    @patch('devflow.agents.claude.subprocess.run')
     def test_run_claude_command_success(self, mock_run, agent):
         """Test successful Claude Code call."""
         expected_response = "Analysis completed successfully"
@@ -374,13 +374,14 @@ class TestClaudeAgentProvider:
 
         assert response == expected_response
         mock_run.assert_called_once_with(
-            ["claude-code", "--prompt", "Test prompt"],
+            ["claude", "--print", "Test prompt"],
             capture_output=True,
             text=True,
-            check=False
+            timeout=300,
+            check=True
         )
 
-    @patch('subprocess.run')
+    @patch('devflow.agents.claude.subprocess.run')
     def test_run_claude_command_failure(self, mock_run, agent):
         """Test failed Claude Code call."""
         mock_run.return_value = Mock(
