@@ -2,7 +2,6 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 import click
 from rich.console import Console
@@ -21,7 +20,6 @@ logger = logging.getLogger(__name__)
 @click.group()
 def autofix():
     """Auto-fix CI failures and review feedback."""
-    pass
 
 
 @autofix.command()

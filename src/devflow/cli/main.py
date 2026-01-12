@@ -18,7 +18,7 @@ from rich.text import Text
 
 from devflow import __version__
 from devflow.core.config import MaturityConfig, ProjectConfig, load_config
-from devflow.exceptions import ConfigurationError, DevFlowError, ValidationError
+from devflow.exceptions import ConfigurationError, DevFlowError
 
 # Rich console for beautiful output
 console = Console()
@@ -470,7 +470,6 @@ def config(
 @click.pass_context
 def repo_group(ctx: click.Context) -> None:
     """Manage GitHub repositories."""
-    pass
 
 
 @repo_group.command(name="create")
@@ -598,7 +597,6 @@ def repo_setup_labels(ctx: click.Context, repository: Optional[str]) -> None:
 @click.pass_context
 def autofix_group(ctx: click.Context) -> None:
     """Auto-fix CI failures and review feedback."""
-    pass
 
 
 @autofix_group.command(name="pr")
