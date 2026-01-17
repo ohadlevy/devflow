@@ -1,23 +1,24 @@
 """Integration tests for AI agents."""
 
-import pytest
 from datetime import datetime
 from unittest.mock import Mock
 
-from devflow.agents.mock import MockAgentProvider
-from devflow.agents.base import (
-    MultiAgentCoordinator,
-    AgentCapability,
-    ValidationContext,
-    ImplementationContext,
-    ReviewContext,
-    WorkflowContext,
-    ValidationResult,
-    ImplementationResult,
-    ReviewDecision,
-    IssueSeverity
-)
+import pytest
+
 from devflow.adapters.base import Issue, IssueState, PullRequest, PullRequestState
+from devflow.agents.base import (
+    AgentCapability,
+    ImplementationContext,
+    ImplementationResult,
+    IssueSeverity,
+    MultiAgentCoordinator,
+    ReviewContext,
+    ReviewDecision,
+    ValidationContext,
+    ValidationResult,
+    WorkflowContext,
+)
+from devflow.agents.mock import MockAgentProvider
 from devflow.exceptions import AgentError, ValidationError
 
 
@@ -51,7 +52,7 @@ class TestMockAgentProvider:
             created_at=datetime.now(),
             updated_at=datetime.now(),
             url="https://github.com/test/repo/issues/123",
-            platform_data={"test": True}
+            platform_data={"test": True},
         )
 
     @pytest.fixture
@@ -72,7 +73,7 @@ class TestMockAgentProvider:
             updated_at=datetime.now(),
             mergeable=True,
             url="https://github.com/test/repo/pull/456",
-            platform_data={"test": True}
+            platform_data={"test": True},
         )
 
     def test_agent_initialization(self, agent):
@@ -111,7 +112,7 @@ class TestMockAgentProvider:
             issue=mock_issue,
             project_context={"maturity_level": "early_stage"},
             maturity_level="early_stage",
-            previous_attempts=[]
+            previous_attempts=[],
         )
 
         response = agent.validate_issue(context)
@@ -128,7 +129,7 @@ class TestMockAgentProvider:
         context = ValidationContext(
             issue=mock_issue,
             project_context={"maturity_level": "early_stage"},
-            maturity_level="early_stage"
+            maturity_level="early_stage",
         )
 
         response = failing_agent.validate_issue(context)
@@ -145,7 +146,7 @@ class TestMockAgentProvider:
             project_context={"maturity_level": "early_stage"},
             validation_result={},
             previous_iterations=[],
-            constraints={"max_iterations": 3, "current_iteration": 1}
+            constraints={"max_iterations": 3, "current_iteration": 1},
         )
 
         response = agent.implement_changes(context)
@@ -164,7 +165,7 @@ class TestMockAgentProvider:
             working_directory="/tmp/test",
             project_context={},
             validation_result={},
-            previous_iterations=[]
+            previous_iterations=[],
         )
 
         response = failing_agent.implement_changes(context)
@@ -177,7 +178,7 @@ class TestMockAgentProvider:
         """Test successful code review."""
         changed_files = [
             {"filename": "src/test.py", "status": "modified"},
-            {"filename": "tests/test_test.py", "status": "added"}
+            {"filename": "tests/test_test.py", "status": "added"},
         ]
 
         context = ReviewContext(
@@ -185,7 +186,7 @@ class TestMockAgentProvider:
             changed_files=changed_files,
             project_context={"maturity_level": "early_stage"},
             maturity_level="early_stage",
-            review_focus=["correctness", "maintainability"]
+            review_focus=["correctness", "maintainability"],
         )
 
         response = agent.review_code(context)
@@ -199,16 +200,13 @@ class TestMockAgentProvider:
     def test_review_code_large_changeset(self, agent, mock_pr):
         """Test code review with large changeset."""
         # Create many changed files to trigger REQUEST_CHANGES
-        changed_files = [
-            {"filename": f"src/file_{i}.py", "status": "modified"}
-            for i in range(15)
-        ]
+        changed_files = [{"filename": f"src/file_{i}.py", "status": "modified"} for i in range(15)]
 
         context = ReviewContext(
             pull_request=mock_pr,
             changed_files=changed_files,
             project_context={},
-            maturity_level="early_stage"
+            maturity_level="early_stage",
         )
 
         response = agent.review_code(context)
@@ -223,7 +221,7 @@ class TestMockAgentProvider:
             project_name="test-project",
             repository_url="https://github.com/test/repo",
             base_branch="main",
-            working_directory="/tmp/test"
+            working_directory="/tmp/test",
         )
 
         result = agent.analyze_codebase(context)
@@ -240,7 +238,7 @@ class TestMockAgentProvider:
             project_name="test-project",
             repository_url="https://github.com/test/repo",
             base_branch="main",
-            working_directory="/tmp/test"
+            working_directory="/tmp/test",
         )
 
         result = agent.generate_documentation(context)
@@ -299,7 +297,9 @@ class TestMultiAgentCoordinator:
         validation_agents = coordinator.get_agents_with_capability(AgentCapability.VALIDATION)
         assert len(validation_agents) == 2
 
-        implementation_agents = coordinator.get_agents_with_capability(AgentCapability.IMPLEMENTATION)
+        implementation_agents = coordinator.get_agents_with_capability(
+            AgentCapability.IMPLEMENTATION
+        )
         assert len(implementation_agents) == 2
 
     def test_select_best_agent(self, coordinator):
@@ -311,16 +311,12 @@ class TestMultiAgentCoordinator:
 
         # Test with preferences
         agent = coordinator.select_best_agent(
-            AgentCapability.VALIDATION,
-            preferences=["mock-2", "mock-1"]
+            AgentCapability.VALIDATION, preferences=["mock-2", "mock-1"]
         )
         assert agent.name == "mock-2"
 
         # Test with context size requirement
-        agent = coordinator.select_best_agent(
-            AgentCapability.VALIDATION,
-            context_size=50000
-        )
+        agent = coordinator.select_best_agent(AgentCapability.VALIDATION, context_size=50000)
         assert agent is not None
 
     def test_coordinate_review(self, coordinator):
@@ -347,7 +343,7 @@ class TestMultiAgentCoordinator:
             pull_request=mock_pr,
             changed_files=[{"filename": "test.py", "status": "modified"}],
             project_context={},
-            maturity_level="early_stage"
+            maturity_level="early_stage",
         )
 
         responses = coordinator.coordinate_review(context)
@@ -375,10 +371,7 @@ class TestMultiAgentCoordinator:
         mock_pr.platform_data = {}
 
         context = ReviewContext(
-            pull_request=mock_pr,
-            changed_files=[],
-            project_context={},
-            maturity_level="early_stage"
+            pull_request=mock_pr, changed_files=[], project_context={}, maturity_level="early_stage"
         )
 
         responses = coordinator.coordinate_review(context, reviewer_names=["mock-1"])

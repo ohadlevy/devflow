@@ -1,10 +1,11 @@
 """Simplified unit tests for GitHub platform adapter."""
 
-import pytest
 from unittest.mock import Mock, patch
 
+import pytest
+
+from devflow.adapters.base import IssueState, MergeStrategy, PullRequestState
 from devflow.adapters.github.client import GitHubPlatformAdapter
-from devflow.adapters.base import IssueState, PullRequestState, MergeStrategy
 from devflow.exceptions import PlatformError
 
 
@@ -17,7 +18,7 @@ class TestGitHubPlatformAdapter:
         return {
             "repo_owner": "test-owner",
             "repo_name": "test-repo",
-            "project_root": "/tmp/test-project"
+            "project_root": "/tmp/test-project",
         }
 
     @pytest.fixture
@@ -59,7 +60,7 @@ class TestGitHubPlatformAdapter:
         pr_url = adapter.get_pull_request_url("other-owner", "other-repo", 999)
         assert pr_url == "https://github.com/other-owner/other-repo/pull/999"
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_validate_connection_success(self, mock_run, adapter):
         """Test successful connection validation."""
         # Mock successful gh auth status
@@ -68,21 +69,28 @@ class TestGitHubPlatformAdapter:
         result = adapter.validate_connection()
         assert result is True
 
-        mock_run.assert_called_once_with(
-            ["gh", "auth", "status"],
+        # Should call both auth status and repo view
+        assert mock_run.call_count == 2
+        mock_run.assert_any_call(
+            ["gh", "auth", "status"], capture_output=True, text=True, check=False, timeout=30
+        )
+        mock_run.assert_any_call(
+            ["gh", "repo", "view", "test-owner/test-repo", "--json", "name"],
             capture_output=True,
             text=True,
-            check=False
+            check=False,
+            timeout=30,
         )
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_validate_connection_failure(self, mock_run, adapter):
         """Test failed connection validation."""
         # Mock failed gh auth status
         mock_run.return_value = Mock(returncode=1, stderr="Not logged in")
 
-        result = adapter.validate_connection()
-        assert result is False
+        # Expect a PlatformError to be raised, not False returned
+        with pytest.raises(PlatformError, match="GitHub CLI not authenticated"):
+            adapter.validate_connection()
 
     def test_adapter_configuration(self, adapter_config):
         """Test adapter configuration."""
@@ -117,11 +125,7 @@ class TestGitHubPlatformAdapter:
 
     def test_adapter_initialization_with_minimal_config(self):
         """Test adapter initialization with minimal configuration."""
-        config = {
-            "repo_owner": "minimal",
-            "repo_name": "test",
-            "project_root": "/tmp"
-        }
+        config = {"repo_owner": "minimal", "repo_name": "test", "project_root": "/tmp"}
 
         adapter = GitHubPlatformAdapter(config)
         assert adapter.owner == "minimal"

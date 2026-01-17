@@ -1,15 +1,22 @@
 """Integration tests for the workflow engine."""
 
-import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from devflow.core.config import ProjectConfig, ProjectMaturity, PlatformConfig, WorkflowConfig, AgentConfig
-from devflow.core.workflow_engine import WorkflowEngine, WorkflowState
+import pytest
+
 from devflow.adapters.git.basic import BasicGitAdapter
-from devflow.agents.mock import MockAgentProvider
 from devflow.agents.base import MultiAgentCoordinator
+from devflow.agents.mock import MockAgentProvider
+from devflow.core.config import (
+    AgentConfig,
+    PlatformConfig,
+    ProjectConfig,
+    ProjectMaturity,
+    WorkflowConfig,
+)
 from devflow.core.state_manager import StateManager
+from devflow.core.workflow_engine import WorkflowEngine, WorkflowState
 
 
 class TestWorkflowEngine:
@@ -27,7 +34,7 @@ class TestWorkflowEngine:
             maturity_level=ProjectMaturity.EARLY_STAGE,
             platforms=PlatformConfig(primary="github"),
             workflows=WorkflowConfig(),
-            agents=AgentConfig(primary="mock", claude_model="claude-3.5-sonnet")
+            agents=AgentConfig(primary="mock", claude_model="claude-3.5-sonnet"),
         )
 
     @pytest.fixture
@@ -36,7 +43,7 @@ class TestWorkflowEngine:
         adapter_config = {
             "repo_owner": config.repo_owner,
             "repo_name": config.repo_name,
-            "project_root": str(config.project_root)
+            "project_root": str(config.project_root),
         }
         return BasicGitAdapter(adapter_config)
 
@@ -59,7 +66,7 @@ class TestWorkflowEngine:
             config=config,
             platform_adapter=platform_adapter,
             agent_coordinator=agent_coordinator,
-            state_manager=state_manager
+            state_manager=state_manager,
         )
 
     def test_workflow_engine_initialization(self, workflow_engine):
@@ -98,8 +105,9 @@ class TestWorkflowEngine:
     def test_workflow_context_creation(self, workflow_engine):
         """Test workflow context creation."""
         # Create a mock session
-        from devflow.core.workflow_engine import WorkflowSession
         from datetime import datetime
+
+        from devflow.core.workflow_engine import WorkflowSession
 
         session = WorkflowSession(
             issue_id="test-issue-123",
@@ -115,10 +123,10 @@ class TestWorkflowEngine:
                 "issue_title": "Test Issue",
                 "issue_body": "Test issue body",
                 "issue_labels": ["bug"],
-                "issue_url": "https://github.com/test-owner/test-repo/issues/123"
+                "issue_url": "https://github.com/test-owner/test-repo/issues/123",
             },
             created_at=datetime.now().isoformat(),
-            updated_at=datetime.now().isoformat()
+            updated_at=datetime.now().isoformat(),
         )
 
         context = workflow_engine._create_workflow_context(session)
@@ -128,7 +136,7 @@ class TestWorkflowEngine:
         assert context.issue.title == "Test Issue"
         assert context.maturity_level == "early_stage"
 
-    @patch('devflow.core.workflow_engine.datetime')
+    @patch("devflow.core.workflow_engine.datetime")
     def test_process_issue_dry_run(self, mock_datetime, workflow_engine):
         """Test issue processing in dry-run mode."""
         # Mock datetime
@@ -145,11 +153,7 @@ class TestWorkflowEngine:
         workflow_engine.platform_adapter.get_issue = Mock(return_value=mock_issue)
 
         # Process issue in dry-run mode
-        result = workflow_engine.process_issue(
-            issue_number=456,
-            auto_mode=True,
-            dry_run=True
-        )
+        result = workflow_engine.process_issue(issue_number=456, auto_mode=True, dry_run=True)
 
         assert result["success"] is True
         assert result["issue_number"] == 456

@@ -13,10 +13,12 @@ from typing import Any, Dict, List, Optional, Tuple
 from devflow.agents.base import (
     AgentCapability,
     ImplementationContext,
-    MultiAgentCoordinator as BaseCoordinator,
+)
+from devflow.agents.base import MultiAgentCoordinator as BaseCoordinator
+from devflow.agents.base import (
     ReviewContext,
     ValidationContext,
-    WorkflowContext
+    WorkflowContext,
 )
 from devflow.core.agent_context import AgentContext, ContextManager
 from devflow.core.mission_control import AgentStatus, LiveMissionControl, MissionControl
@@ -32,7 +34,7 @@ class ParallelAgentCoordinator:
         self,
         base_coordinator: BaseCoordinator,
         issue_number: int,
-        enable_mission_control: bool = True
+        enable_mission_control: bool = True,
     ):
         """Initialize the parallel coordinator."""
         self.base_coordinator = base_coordinator
@@ -68,27 +70,16 @@ class ParallelAgentCoordinator:
             # Register agents in mission control
             for i, agent in enumerate(self._exploration_agents):
                 self.mission_control.register_agent(
-                    f"explore_{i}",
-                    "exploration",
-                    f"Explorer {i+1}",
-                    "🔍"
+                    f"explore_{i}", "exploration", f"Explorer {i+1}", "🔍"
                 )
 
             for i, agent in enumerate(self._implementation_agents):
                 self.mission_control.register_agent(
-                    f"impl_{i}",
-                    "implementation",
-                    f"Builder {i+1}",
-                    "⚙️"
+                    f"impl_{i}", "implementation", f"Builder {i+1}", "⚙️"
                 )
 
             for i, agent in enumerate(self._review_agents):
-                self.mission_control.register_agent(
-                    f"review_{i}",
-                    "review",
-                    f"Reviewer {i+1}",
-                    "👁️"
-                )
+                self.mission_control.register_agent(f"review_{i}", "review", f"Reviewer {i+1}", "👁️")
 
             self.live_display = LiveMissionControl(self.mission_control)
             self.live_display.__enter__()
@@ -134,14 +125,13 @@ class ParallelAgentCoordinator:
                     "explore_0",
                     AgentStatus.COMPLETING,
                     90,
-                    "Performing final validation with context"
+                    "Performing final validation with context",
                 )
 
             # Run validation with pre-built context
             enhanced_context = self._enhance_validation_context(context, combined_context)
             validation_result = await self._run_validation_with_context(
-                validation_agent,
-                enhanced_context
+                validation_agent, enhanced_context
             )
 
             return validation_result
@@ -154,9 +144,7 @@ class ParallelAgentCoordinator:
             self.stop_mission_control()
 
     async def parallel_implementation(
-        self,
-        context: ImplementationContext,
-        working_directory: str
+        self, context: ImplementationContext, working_directory: str
     ) -> Dict[str, Any]:
         """Run implementation with parallel agents and context reuse."""
 
@@ -178,10 +166,14 @@ class ParallelAgentCoordinator:
             # Phase 2: Parallel Implementation Strategy
             if len(self._implementation_agents) >= 2:
                 # Split work between agents
-                return await self._parallel_implementation_split(context, working_directory, context_summary)
+                return await self._parallel_implementation_split(
+                    context, working_directory, context_summary
+                )
             else:
                 # Single agent with context optimization
-                return await self._single_implementation_optimized(context, working_directory, context_summary)
+                return await self._single_implementation_optimized(
+                    context, working_directory, context_summary
+                )
 
         except Exception as e:
             logger.error(f"Parallel implementation failed: {str(e)}")
@@ -200,17 +192,14 @@ class ParallelAgentCoordinator:
             review_focuses = [
                 ["correctness", "security"],
                 ["maintainability", "performance"],
-                ["testing", "documentation"]
+                ["testing", "documentation"],
             ]
 
             for i, (agent, focus) in enumerate(zip(self._review_agents[:3], review_focuses)):
                 agent_id = f"review_{i}"
 
                 if self.mission_control:
-                    self.mission_control.start_agent(
-                        agent_id,
-                        f"Reviewing: {', '.join(focus)}"
-                    )
+                    self.mission_control.start_agent(agent_id, f"Reviewing: {', '.join(focus)}")
 
                 # Create focused review context
                 focused_context = ReviewContext(
@@ -218,7 +207,7 @@ class ParallelAgentCoordinator:
                     changed_files=context.changed_files,
                     project_context=context.project_context,
                     maturity_level=context.maturity_level,
-                    review_focus=focus
+                    review_focus=focus,
                 )
 
                 task = self._run_focused_review(agent, focused_context, agent_id, focus)
@@ -236,10 +225,7 @@ class ParallelAgentCoordinator:
 
     # Implementation methods
     async def _run_exploration_agent(
-        self,
-        agent,
-        context: ValidationContext,
-        agent_id: str
+        self, agent, context: ValidationContext, agent_id: str
     ) -> AgentContext:
         """Run exploration agent to build context."""
 
@@ -247,10 +233,7 @@ class ParallelAgentCoordinator:
 
         if self.mission_control:
             self.mission_control.update_agent_progress(
-                agent_id,
-                AgentStatus.ANALYZING,
-                25,
-                "Exploring codebase structure"
+                agent_id, AgentStatus.ANALYZING, 25, "Exploring codebase structure"
             )
 
         try:
@@ -259,20 +242,14 @@ class ParallelAgentCoordinator:
 
             if self.mission_control:
                 self.mission_control.update_agent_progress(
-                    agent_id,
-                    AgentStatus.COMPLETED,
-                    100,
-                    "Codebase analysis complete"
+                    agent_id, AgentStatus.COMPLETED, 100, "Codebase analysis complete"
                 )
 
             # Extract context from result
             execution_time = (datetime.now() - start_time).total_seconds()
 
             agent_context = self.context_manager.extract_context_from_transcript(
-                result.message,
-                agent.name,
-                "validation",
-                execution_time
+                result.message, agent.name, "validation", execution_time
             )
 
             # Save to context manager
@@ -283,10 +260,7 @@ class ParallelAgentCoordinator:
         except Exception as e:
             if self.mission_control:
                 self.mission_control.update_agent_progress(
-                    agent_id,
-                    AgentStatus.FAILED,
-                    0,
-                    f"Failed: {str(e)[:30]}"
+                    agent_id, AgentStatus.FAILED, 0, f"Failed: {str(e)[:30]}"
                 )
             raise
 
@@ -308,27 +282,23 @@ class ParallelAgentCoordinator:
         return f"Analyzed {len(all_files)} files with {len(all_insights)} key insights from parallel exploration."
 
     def _enhance_validation_context(
-        self,
-        original_context: ValidationContext,
-        exploration_context: str
+        self, original_context: ValidationContext, exploration_context: str
     ) -> ValidationContext:
         """Enhance validation context with exploration results."""
 
         # Add exploration context to project context
         enhanced_project_context = original_context.project_context.copy()
-        enhanced_project_context['exploration_results'] = exploration_context
+        enhanced_project_context["exploration_results"] = exploration_context
 
         return ValidationContext(
             issue=original_context.issue,
             project_context=enhanced_project_context,
             maturity_level=original_context.maturity_level,
-            previous_attempts=original_context.previous_attempts
+            previous_attempts=original_context.previous_attempts,
         )
 
     async def _run_validation_with_context(
-        self,
-        agent,
-        context: ValidationContext
+        self, agent, context: ValidationContext
     ) -> Dict[str, Any]:
         """Run validation agent with pre-built context."""
 
@@ -338,18 +308,15 @@ class ParallelAgentCoordinator:
         result = agent.validate_issue(context)
 
         return {
-            'success': result.success,
-            'result': result.result,
-            'message': result.message,
-            'confidence': result.confidence,
-            'context_reused': True
+            "success": result.success,
+            "result": result.result,
+            "message": result.message,
+            "confidence": result.confidence,
+            "context_reused": True,
         }
 
     async def _parallel_implementation_split(
-        self,
-        context: ImplementationContext,
-        working_directory: str,
-        context_summary: str
+        self, context: ImplementationContext, working_directory: str, context_summary: str
     ) -> Dict[str, Any]:
         """Split implementation across multiple agents."""
 
@@ -357,7 +324,9 @@ class ParallelAgentCoordinator:
         # Agent 2: Tests and documentation
 
         impl_agent = self._implementation_agents[0]
-        test_agent = self._implementation_agents[1] if len(self._implementation_agents) > 1 else impl_agent
+        test_agent = (
+            self._implementation_agents[1] if len(self._implementation_agents) > 1 else impl_agent
+        )
 
         # Start both agents
         if self.mission_control:
@@ -373,34 +342,25 @@ class ParallelAgentCoordinator:
 
             if self.mission_control:
                 self.mission_control.update_agent_progress(
-                    "impl_0",
-                    AgentStatus.COMPLETED,
-                    100,
-                    "Implementation complete"
+                    "impl_0", AgentStatus.COMPLETED, 100, "Implementation complete"
                 )
 
             return {
-                'success': result.success,
-                'result': result.result,
-                'message': result.message,
-                'context_reused': True
+                "success": result.success,
+                "result": result.result,
+                "message": result.message,
+                "context_reused": True,
             }
 
         except Exception as e:
             if self.mission_control:
                 self.mission_control.update_agent_progress(
-                    "impl_0",
-                    AgentStatus.FAILED,
-                    0,
-                    f"Failed: {str(e)[:30]}"
+                    "impl_0", AgentStatus.FAILED, 0, f"Failed: {str(e)[:30]}"
                 )
             raise
 
     async def _single_implementation_optimized(
-        self,
-        context: ImplementationContext,
-        working_directory: str,
-        context_summary: str
+        self, context: ImplementationContext, working_directory: str, context_summary: str
     ) -> Dict[str, Any]:
         """Single agent implementation optimized with context."""
 
@@ -415,38 +375,30 @@ class ParallelAgentCoordinator:
 
             if self.mission_control:
                 self.mission_control.update_agent_progress(
-                    "impl_0",
-                    AgentStatus.COMPLETED,
-                    100,
-                    "Implementation complete"
+                    "impl_0", AgentStatus.COMPLETED, 100, "Implementation complete"
                 )
 
             return {
-                'success': result.success,
-                'result': result.result,
-                'message': result.message,
-                'context_reused': True
+                "success": result.success,
+                "result": result.result,
+                "message": result.message,
+                "context_reused": True,
             }
 
         except Exception as e:
             if self.mission_control:
                 self.mission_control.update_agent_progress(
-                    "impl_0",
-                    AgentStatus.FAILED,
-                    0,
-                    f"Failed: {str(e)[:30]}"
+                    "impl_0", AgentStatus.FAILED, 0, f"Failed: {str(e)[:30]}"
                 )
             raise
 
     def _add_context_to_implementation(
-        self,
-        context: ImplementationContext,
-        context_summary: str
+        self, context: ImplementationContext, context_summary: str
     ) -> ImplementationContext:
         """Add context summary to implementation context."""
 
         enhanced_project_context = context.project_context.copy()
-        enhanced_project_context['previous_analysis'] = context_summary
+        enhanced_project_context["previous_analysis"] = context_summary
 
         return ImplementationContext(
             issue=context.issue,
@@ -454,24 +406,17 @@ class ParallelAgentCoordinator:
             project_context=enhanced_project_context,
             validation_result=context.validation_result,
             previous_iterations=context.previous_iterations,
-            constraints=context.constraints
+            constraints=context.constraints,
         )
 
     async def _run_focused_review(
-        self,
-        agent,
-        context: ReviewContext,
-        agent_id: str,
-        focus_areas: List[str]
+        self, agent, context: ReviewContext, agent_id: str, focus_areas: List[str]
     ) -> Dict[str, Any]:
         """Run focused review on specific areas."""
 
         if self.mission_control:
             self.mission_control.update_agent_progress(
-                agent_id,
-                AgentStatus.ANALYZING,
-                50,
-                f"Reviewing {', '.join(focus_areas)}"
+                agent_id, AgentStatus.ANALYZING, 50, f"Reviewing {', '.join(focus_areas)}"
             )
 
         try:
@@ -482,37 +427,34 @@ class ParallelAgentCoordinator:
                     agent_id,
                     AgentStatus.COMPLETED,
                     100,
-                    f"Review complete: {', '.join(focus_areas)}"
+                    f"Review complete: {', '.join(focus_areas)}",
                 )
 
             return {
-                'agent': agent.name,
-                'focus': focus_areas,
-                'result': result,
-                'success': result.success
+                "agent": agent.name,
+                "focus": focus_areas,
+                "result": result,
+                "success": result.success,
             }
 
         except Exception as e:
             if self.mission_control:
                 self.mission_control.update_agent_progress(
-                    agent_id,
-                    AgentStatus.FAILED,
-                    0,
-                    f"Review failed: {str(e)[:20]}"
+                    agent_id, AgentStatus.FAILED, 0, f"Review failed: {str(e)[:20]}"
                 )
             raise
 
     def _merge_review_results(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Merge parallel review results."""
 
-        valid_results = [r for r in results if isinstance(r, dict) and r.get('success')]
+        valid_results = [r for r in results if isinstance(r, dict) and r.get("success")]
 
         if not valid_results:
-            return {'success': False, 'message': 'All reviews failed'}
+            return {"success": False, "message": "All reviews failed"}
 
         # TODO: Implement sophisticated review merging logic
         # For now, use the first successful result
-        return valid_results[0]['result'].__dict__
+        return valid_results[0]["result"].__dict__
 
     async def _single_agent_review(self, context: ReviewContext) -> Dict[str, Any]:
         """Fallback to single agent review."""
@@ -525,10 +467,7 @@ class ParallelAgentCoordinator:
 
         if self.mission_control:
             self.mission_control.update_agent_progress(
-                "review_0",
-                AgentStatus.COMPLETED,
-                100,
-                "Review complete"
+                "review_0", AgentStatus.COMPLETED, 100, "Review complete"
             )
 
         return result.__dict__

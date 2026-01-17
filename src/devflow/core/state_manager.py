@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 class GlobalStatistics(BaseModel):
     """Global pipeline statistics."""
+
     total_workflows: int = 0
     active_workflows: int = 0
     completed_workflows: int = 0
@@ -52,6 +53,7 @@ class GlobalStatistics(BaseModel):
 
 class WorkflowHistory(BaseModel):
     """Represents a single workflow history entry."""
+
     timestamp: str
     state: str
     stage: Optional[str] = None
@@ -61,11 +63,11 @@ class WorkflowHistory(BaseModel):
     error: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
-    @validator('timestamp')
+    @validator("timestamp")
     def validate_timestamp(cls, v):
         """Validate timestamp format."""
         try:
-            datetime.fromisoformat(v.replace('Z', '+00:00'))
+            datetime.fromisoformat(v.replace("Z", "+00:00"))
         except ValueError:
             raise ValueError("Invalid timestamp format")
         return v
@@ -73,6 +75,7 @@ class WorkflowHistory(BaseModel):
 
 class WorkflowError(BaseModel):
     """Represents a workflow error."""
+
     timestamp: str
     error_type: str
     error_message: str
@@ -85,6 +88,7 @@ class WorkflowError(BaseModel):
 
 class PipelineState(BaseModel):
     """Complete pipeline state structure."""
+
     version: str = "2.0"
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
     last_updated: str = Field(default_factory=lambda: datetime.now().isoformat())
@@ -106,9 +110,7 @@ class StateManager:
     """
 
     def __init__(
-        self,
-        config: Optional[ProjectConfig] = None,
-        state_file: Optional[Path] = None
+        self, config: Optional[ProjectConfig] = None, state_file: Optional[Path] = None
     ) -> None:
         """Initialize the state manager.
 
@@ -163,11 +165,11 @@ class StateManager:
             return PipelineState()
 
         try:
-            with open(self.state_file, 'r', encoding='utf-8') as f:
+            with open(self.state_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             # Handle legacy state format migration
-            if data.get('version', '1.0') == '1.0':
+            if data.get("version", "1.0") == "1.0":
                 logger.info("Migrating legacy state format")
                 return self._migrate_legacy_state(data)
 
@@ -175,7 +177,7 @@ class StateManager:
 
         except json.JSONDecodeError as e:
             logger.error(f"Corrupted state file: {e}")
-            backup_path = self.state_file.with_suffix('.json.backup')
+            backup_path = self.state_file.with_suffix(".json.backup")
             self.state_file.rename(backup_path)
             logger.info(f"Corrupted state backed up to: {backup_path}")
             return PipelineState()
@@ -196,31 +198,35 @@ class StateManager:
         logger.info("Migrating legacy state format...")
 
         new_state = PipelineState()
-        new_state.created_at = legacy_data.get('last_updated', datetime.now().isoformat())
+        new_state.created_at = legacy_data.get("last_updated", datetime.now().isoformat())
 
         # Migrate issues to workflows
-        legacy_issues = legacy_data.get('issues', {})
+        legacy_issues = legacy_data.get("issues", {})
         for issue_key, issue_data in legacy_issues.items():
             try:
                 # Convert legacy issue to workflow session
                 session = WorkflowSession(
                     issue_id=f"issue-{issue_data['issue_number']}",
-                    issue_number=issue_data['issue_number'],
-                    current_state=WorkflowState(issue_data.get('state', 'pending')),
-                    iteration_count=issue_data.get('iteration_count', 0),
-                    max_iterations=issue_data.get('max_iterations', 3),
-                    worktree_path=Path(issue_data['worktree_path']) if issue_data.get('worktree_path') else None,
-                    branch_name=issue_data.get('branch_name'),
-                    pr_number=issue_data.get('pr_number'),
-                    session_transcript=issue_data.get('validation_transcript', '') or '',
+                    issue_number=issue_data["issue_number"],
+                    current_state=WorkflowState(issue_data.get("state", "pending")),
+                    iteration_count=issue_data.get("iteration_count", 0),
+                    max_iterations=issue_data.get("max_iterations", 3),
+                    worktree_path=(
+                        Path(issue_data["worktree_path"])
+                        if issue_data.get("worktree_path")
+                        else None
+                    ),
+                    branch_name=issue_data.get("branch_name"),
+                    pr_number=issue_data.get("pr_number"),
+                    session_transcript=issue_data.get("validation_transcript", "") or "",
                     context_data={
-                        'issue_title': issue_data.get('title', ''),
-                        'issue_labels': issue_data.get('labels', []),
-                        'legacy_history': issue_data.get('history', []),
-                        'legacy_errors': issue_data.get('errors', [])
+                        "issue_title": issue_data.get("title", ""),
+                        "issue_labels": issue_data.get("labels", []),
+                        "legacy_history": issue_data.get("history", []),
+                        "legacy_errors": issue_data.get("errors", []),
                     },
-                    created_at=issue_data.get('created_at', datetime.now().isoformat()),
-                    updated_at=datetime.now().isoformat()
+                    created_at=issue_data.get("created_at", datetime.now().isoformat()),
+                    updated_at=datetime.now().isoformat(),
                 )
 
                 new_state.workflows[f"issue-{issue_data['issue_number']}"] = session.to_dict()
@@ -230,12 +236,12 @@ class StateManager:
                 continue
 
         # Migrate global stats
-        legacy_stats = legacy_data.get('global_stats', {})
+        legacy_stats = legacy_data.get("global_stats", {})
         new_state.global_stats = GlobalStatistics(
-            total_workflows=legacy_stats.get('total_issues', 0),
-            completed_workflows=legacy_stats.get('completed', 0),
-            failed_workflows=legacy_stats.get('failed', 0),
-            active_workflows=legacy_stats.get('in_progress', 0)
+            total_workflows=legacy_stats.get("total_issues", 0),
+            completed_workflows=legacy_stats.get("completed", 0),
+            failed_workflows=legacy_stats.get("failed", 0),
+            active_workflows=legacy_stats.get("in_progress", 0),
         )
         new_state.global_stats.calculate_derived_metrics()
 
@@ -253,16 +259,10 @@ class StateManager:
                 self._state.update_timestamp()
 
                 # Create atomic write by writing to temp file first
-                temp_file = self.state_file.with_suffix('.tmp')
+                temp_file = self.state_file.with_suffix(".tmp")
 
-                with open(temp_file, 'w', encoding='utf-8') as f:
-                    json.dump(
-                        self._state.dict(),
-                        f,
-                        indent=2,
-                        ensure_ascii=False,
-                        sort_keys=True
-                    )
+                with open(temp_file, "w", encoding="utf-8") as f:
+                    json.dump(self._state.dict(), f, indent=2, ensure_ascii=False, sort_keys=True)
 
                 # Atomic replace
                 temp_file.replace(self.state_file)
@@ -336,9 +336,7 @@ class StateManager:
             return False
 
     def list_workflow_sessions(
-        self,
-        state_filter: Optional[WorkflowState] = None,
-        limit: Optional[int] = None
+        self, state_filter: Optional[WorkflowState] = None, limit: Optional[int] = None
     ) -> List[WorkflowSession]:
         """List workflow sessions with optional filtering.
 
@@ -382,7 +380,7 @@ class StateManager:
         agent_used: Optional[str] = None,
         duration_seconds: Optional[float] = None,
         error: Optional[str] = None,
-        **metadata
+        **metadata,
     ) -> None:
         """Add history entry to workflow.
 
@@ -405,8 +403,8 @@ class StateManager:
 
             workflow_data = self._state.workflows[workflow_id]
 
-            if 'history' not in workflow_data['context_data']:
-                workflow_data['context_data']['history'] = []
+            if "history" not in workflow_data["context_data"]:
+                workflow_data["context_data"]["history"] = []
 
             history_entry = WorkflowHistory(
                 timestamp=datetime.now().isoformat(),
@@ -416,10 +414,10 @@ class StateManager:
                 agent_used=agent_used,
                 duration_seconds=duration_seconds,
                 error=error,
-                metadata=metadata
+                metadata=metadata,
             )
 
-            workflow_data['context_data']['history'].append(history_entry.dict())
+            workflow_data["context_data"]["history"].append(history_entry.dict())
             self._save_state()
 
     def add_workflow_error(
@@ -430,7 +428,7 @@ class StateManager:
         stage: Optional[str] = None,
         iteration: int = 0,
         agent_used: Optional[str] = None,
-        **context
+        **context,
     ) -> None:
         """Add error to workflow.
 
@@ -452,8 +450,8 @@ class StateManager:
 
             workflow_data = self._state.workflows[workflow_id]
 
-            if 'errors' not in workflow_data['context_data']:
-                workflow_data['context_data']['errors'] = []
+            if "errors" not in workflow_data["context_data"]:
+                workflow_data["context_data"]["errors"] = []
 
             error_entry = WorkflowError(
                 timestamp=datetime.now().isoformat(),
@@ -462,10 +460,10 @@ class StateManager:
                 stage=stage,
                 iteration=iteration,
                 agent_used=agent_used,
-                context=context
+                context=context,
             )
 
-            workflow_data['context_data']['errors'].append(error_entry.dict())
+            workflow_data["context_data"]["errors"].append(error_entry.dict())
             self._save_state()
 
     def get_workflow_history(self, issue_number: int) -> List[WorkflowHistory]:
@@ -481,7 +479,7 @@ class StateManager:
             workflow_id = f"issue-{issue_number}"
             workflow_data = self._state.workflows.get(workflow_id, {})
 
-            history_data = workflow_data.get('context_data', {}).get('history', [])
+            history_data = workflow_data.get("context_data", {}).get("history", [])
 
             try:
                 return [WorkflowHistory(**entry) for entry in history_data]
@@ -502,7 +500,7 @@ class StateManager:
             workflow_id = f"issue-{issue_number}"
             workflow_data = self._state.workflows.get(workflow_id, {})
 
-            error_data = workflow_data.get('context_data', {}).get('errors', [])
+            error_data = workflow_data.get("context_data", {}).get("errors", [])
 
             try:
                 return [WorkflowError(**entry) for entry in error_data]
@@ -518,8 +516,8 @@ class StateManager:
 
         for workflow_data in self._state.workflows.values():
             try:
-                state = WorkflowState(workflow_data['current_state'])
-                iteration_count = workflow_data.get('iteration_count', 0)
+                state = WorkflowState(workflow_data["current_state"])
+                iteration_count = workflow_data.get("iteration_count", 0)
 
                 stats.total_workflows += 1
                 total_iterations += iteration_count
@@ -531,7 +529,7 @@ class StateManager:
                     WorkflowState.IMPLEMENTATION_FAILED,
                     WorkflowState.REVIEW_FAILED,
                     WorkflowState.MAX_ITERATIONS_REACHED,
-                    WorkflowState.NEEDS_HUMAN_INTERVENTION
+                    WorkflowState.NEEDS_HUMAN_INTERVENTION,
                 ]:
                     stats.failed_workflows += 1
                 else:
@@ -572,14 +570,14 @@ class StateManager:
 
         with self._lock:
             analytics = {
-                'period_days': days_back,
-                'workflows_created': 0,
-                'workflows_completed': 0,
-                'avg_completion_time_hours': 0.0,
-                'state_distribution': {},
-                'error_types': {},
-                'agent_usage': {},
-                'success_rate_by_iteration': {}
+                "period_days": days_back,
+                "workflows_created": 0,
+                "workflows_completed": 0,
+                "avg_completion_time_hours": 0.0,
+                "state_distribution": {},
+                "error_types": {},
+                "agent_usage": {},
+                "success_rate_by_iteration": {},
             }
 
             completion_times = []
@@ -590,24 +588,24 @@ class StateManager:
 
             for workflow_data in self._state.workflows.values():
                 try:
-                    created_at = workflow_data.get('created_at', '')
+                    created_at = workflow_data.get("created_at", "")
 
                     if created_at < cutoff_iso:
                         continue
 
-                    analytics['workflows_created'] += 1
+                    analytics["workflows_created"] += 1
 
-                    state = workflow_data['current_state']
+                    state = workflow_data["current_state"]
                     state_counts[state] = state_counts.get(state, 0) + 1
 
-                    if state in ['completed', 'merged']:
-                        analytics['workflows_completed'] += 1
+                    if state in ["completed", "merged"]:
+                        analytics["workflows_completed"] += 1
 
                         # Calculate completion time
                         try:
-                            created = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                            created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
                             updated = datetime.fromisoformat(
-                                workflow_data.get('updated_at', created_at).replace('Z', '+00:00')
+                                workflow_data.get("updated_at", created_at).replace("Z", "+00:00")
                             )
                             completion_hours = (updated - created).total_seconds() / 3600
                             completion_times.append(completion_hours)
@@ -615,26 +613,26 @@ class StateManager:
                             pass
 
                     # Analyze errors
-                    errors = workflow_data.get('context_data', {}).get('errors', [])
+                    errors = workflow_data.get("context_data", {}).get("errors", [])
                     for error in errors:
-                        error_type = error.get('error_type', 'unknown')
+                        error_type = error.get("error_type", "unknown")
                         error_types[error_type] = error_types.get(error_type, 0) + 1
 
                     # Analyze agent usage
-                    history = workflow_data.get('context_data', {}).get('history', [])
+                    history = workflow_data.get("context_data", {}).get("history", [])
                     for entry in history:
-                        agent = entry.get('agent_used')
+                        agent = entry.get("agent_used")
                         if agent:
                             agent_usage[agent] = agent_usage.get(agent, 0) + 1
 
                     # Track success rate by iteration
-                    iteration = workflow_data.get('iteration_count', 1)
+                    iteration = workflow_data.get("iteration_count", 1)
                     if iteration not in iteration_success:
-                        iteration_success[iteration] = {'total': 0, 'successful': 0}
+                        iteration_success[iteration] = {"total": 0, "successful": 0}
 
-                    iteration_success[iteration]['total'] += 1
-                    if state in ['completed', 'merged']:
-                        iteration_success[iteration]['successful'] += 1
+                    iteration_success[iteration]["total"] += 1
+                    if state in ["completed", "merged"]:
+                        iteration_success[iteration]["successful"] += 1
 
                 except Exception as e:
                     logger.warning(f"Failed to process workflow for analytics: {e}")
@@ -642,20 +640,22 @@ class StateManager:
 
             # Calculate averages
             if completion_times:
-                analytics['avg_completion_time_hours'] = sum(completion_times) / len(completion_times)
+                analytics["avg_completion_time_hours"] = sum(completion_times) / len(
+                    completion_times
+                )
 
-            analytics['state_distribution'] = state_counts
-            analytics['error_types'] = error_types
-            analytics['agent_usage'] = agent_usage
+            analytics["state_distribution"] = state_counts
+            analytics["error_types"] = error_types
+            analytics["agent_usage"] = agent_usage
 
             # Calculate success rates by iteration
             for iteration, data in iteration_success.items():
-                if data['total'] > 0:
-                    success_rate = data['successful'] / data['total']
-                    analytics['success_rate_by_iteration'][iteration] = {
-                        'success_rate': success_rate,
-                        'total_workflows': data['total'],
-                        'successful_workflows': data['successful']
+                if data["total"] > 0:
+                    success_rate = data["successful"] / data["total"]
+                    analytics["success_rate_by_iteration"][iteration] = {
+                        "success_rate": success_rate,
+                        "total_workflows": data["total"],
+                        "successful_workflows": data["successful"],
                     }
 
             return analytics
@@ -676,10 +676,10 @@ class StateManager:
 
                 # Optionally exclude transcripts to reduce file size
                 if not include_transcripts:
-                    for workflow_data in export_data.get('workflows', {}).values():
-                        workflow_data['session_transcript'] = '[EXCLUDED]'
+                    for workflow_data in export_data.get("workflows", {}).values():
+                        workflow_data["session_transcript"] = "[EXCLUDED]"
 
-                with open(export_path, 'w', encoding='utf-8') as f:
+                with open(export_path, "w", encoding="utf-8") as f:
                     json.dump(export_data, f, indent=2, ensure_ascii=False)
 
             logger.info(f"State exported to: {export_path}")
@@ -709,13 +709,10 @@ class StateManager:
 
             for workflow_id, workflow_data in self._state.workflows.items():
                 try:
-                    state = workflow_data['current_state']
-                    updated_at = workflow_data.get('updated_at', '')
+                    state = workflow_data["current_state"]
+                    updated_at = workflow_data.get("updated_at", "")
 
-                    if (
-                        state in ['completed', 'merged'] and
-                        updated_at < cutoff_iso
-                    ):
+                    if state in ["completed", "merged"] and updated_at < cutoff_iso:
                         workflows_to_remove.append(workflow_id)
 
                 except Exception as e:
@@ -740,41 +737,37 @@ class StateManager:
             Validation results
         """
         results = {
-            'valid': True,
-            'issues': [],
-            'warnings': [],
-            'statistics': {
-                'total_workflows': 0,
-                'valid_workflows': 0,
-                'corrupted_workflows': 0
-            }
+            "valid": True,
+            "issues": [],
+            "warnings": [],
+            "statistics": {"total_workflows": 0, "valid_workflows": 0, "corrupted_workflows": 0},
         }
 
         with self._lock:
             try:
                 # Check state structure
                 if not isinstance(self._state.dict(), dict):
-                    results['issues'].append("State is not a valid dictionary")
-                    results['valid'] = False
+                    results["issues"].append("State is not a valid dictionary")
+                    results["valid"] = False
 
                 # Check individual workflows
                 for workflow_id, workflow_data in self._state.workflows.items():
-                    results['statistics']['total_workflows'] += 1
+                    results["statistics"]["total_workflows"] += 1
 
                     try:
                         # Try to deserialize workflow
                         WorkflowSession.from_dict(workflow_data)
-                        results['statistics']['valid_workflows'] += 1
+                        results["statistics"]["valid_workflows"] += 1
 
                     except Exception as e:
-                        results['statistics']['corrupted_workflows'] += 1
-                        results['warnings'].append(f"Workflow {workflow_id}: {str(e)}")
+                        results["statistics"]["corrupted_workflows"] += 1
+                        results["warnings"].append(f"Workflow {workflow_id}: {str(e)}")
 
                 # Check for orphaned references
                 # TODO: Add more integrity checks as needed
 
             except Exception as e:
-                results['issues'].append(f"State integrity check failed: {str(e)}")
-                results['valid'] = False
+                results["issues"].append(f"State integrity check failed: {str(e)}")
+                results["valid"] = False
 
         return results

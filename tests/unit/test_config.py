@@ -1,14 +1,16 @@
 """Test configuration system."""
 
-import pytest
 from pathlib import Path
+
+import pytest
+
 from devflow.core.config import (
-    ProjectConfig,
-    ProjectMaturity,
+    AgentConfig,
     MaturityConfig,
     PlatformConfig,
+    ProjectConfig,
+    ProjectMaturity,
     WorkflowConfig,
-    AgentConfig
 )
 from devflow.exceptions import ValidationError
 
@@ -71,8 +73,7 @@ class TestProjectConfig:
     def test_basic_creation(self):
         """Test basic config creation."""
         config = ProjectConfig(
-            project_name="test-project",
-            platforms=PlatformConfig(primary="github")
+            project_name="test-project", platforms=PlatformConfig(primary="github")
         )
         assert config.project_name == "test-project"
         assert config.maturity_level == ProjectMaturity.EARLY_STAGE
@@ -83,7 +84,7 @@ class TestProjectConfig:
         config = ProjectConfig(
             project_name="test-project",
             maturity_level=ProjectMaturity.STABLE,
-            platforms=PlatformConfig(primary="github")
+            platforms=PlatformConfig(primary="github"),
         )
         preset = config.maturity_preset
         assert preset.min_coverage == 70
@@ -92,18 +93,14 @@ class TestProjectConfig:
     def test_validate_complete_success(self):
         """Test complete validation with valid config."""
         config = ProjectConfig(
-            project_name="test-project",
-            platforms=PlatformConfig(primary="github")
+            project_name="test-project", platforms=PlatformConfig(primary="github")
         )
         errors = config.validate_complete()
         assert errors == []
 
     def test_validate_complete_missing_name(self):
         """Test validation fails with missing project name."""
-        config = ProjectConfig(
-            project_name="",
-            platforms=PlatformConfig(primary="github")
-        )
+        config = ProjectConfig(project_name="", platforms=PlatformConfig(primary="github"))
         errors = config.validate_complete()
         assert "Project name is required" in errors
 
@@ -112,7 +109,7 @@ class TestProjectConfig:
         config = ProjectConfig(
             project_name="test-project",
             maturity_level=ProjectMaturity.PROTOTYPE,
-            platforms=PlatformConfig(primary="github")
+            platforms=PlatformConfig(primary="github"),
         )
         settings = config.get_effective_settings()
 
@@ -139,7 +136,7 @@ class TestWorkflowConfig:
             validation_enabled=False,
             validation_timeout=300,
             implementation_max_iterations=5,
-            commit_strategy="merge"
+            commit_strategy="merge",
         )
         assert config.validation_enabled is False
         assert config.validation_timeout == 300
@@ -172,10 +169,7 @@ class TestAgentConfig:
 
     def test_claude_agent_custom_model(self):
         """Test Claude agent with custom model."""
-        config = AgentConfig(
-            primary="claude",
-            claude_model="claude-3-opus"
-        )
+        config = AgentConfig(primary="claude", claude_model="claude-3-opus")
         assert config.primary == "claude"
         assert config.claude_model == "claude-3-opus"
 
@@ -188,12 +182,7 @@ class TestAgentConfig:
 
     def test_custom_model_variants(self):
         """Test various Claude model configurations."""
-        models = [
-            "claude-3.5-sonnet",
-            "claude-3-opus",
-            "claude-3-sonnet",
-            "claude-3-haiku"
-        ]
+        models = ["claude-3.5-sonnet", "claude-3-opus", "claude-3-sonnet", "claude-3-haiku"]
 
         for model in models:
             config = AgentConfig(primary="claude", claude_model=model)
@@ -213,14 +202,8 @@ class TestCompleteProjectConfig:
             base_branch="main",
             maturity_level=ProjectMaturity.STABLE,
             platforms=PlatformConfig(primary="github"),
-            workflows=WorkflowConfig(
-                validation_enabled=True,
-                implementation_max_iterations=5
-            ),
-            agents=AgentConfig(
-                primary="claude",
-                claude_model="claude-3-opus"
-            )
+            workflows=WorkflowConfig(validation_enabled=True, implementation_max_iterations=5),
+            agents=AgentConfig(primary="claude", claude_model="claude-3-opus"),
         )
 
         assert config.project_name == "test-project"
@@ -245,7 +228,7 @@ class TestCompleteProjectConfig:
             maturity_level=ProjectMaturity.MATURE,
             platforms=PlatformConfig(primary="gitlab"),
             workflows=WorkflowConfig(),
-            agents=AgentConfig(primary="claude")
+            agents=AgentConfig(primary="claude"),
         )
 
         assert config.platforms.primary == "gitlab"
@@ -263,7 +246,7 @@ class TestCompleteProjectConfig:
             maturity_level=ProjectMaturity.PROTOTYPE,
             platforms=PlatformConfig(primary="github"),
             workflows=WorkflowConfig(),
-            agents=AgentConfig(primary="mock")
+            agents=AgentConfig(primary="mock"),
         )
 
         assert config.project_name == "minimal-project"
@@ -281,7 +264,7 @@ class TestCompleteProjectConfig:
             maturity_level=ProjectMaturity.EARLY_STAGE,
             platforms=PlatformConfig(primary="github"),
             workflows=WorkflowConfig(),
-            agents=AgentConfig(primary="claude")
+            agents=AgentConfig(primary="claude"),
         )
 
         assert config.project_name == "test-project"

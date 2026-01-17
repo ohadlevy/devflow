@@ -13,15 +13,16 @@ from typing import Dict, List, Optional
 
 from rich.console import Console
 from rich.layout import Layout
+from rich.live import Live
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
 from rich.text import Text
-from rich.live import Live
 
 
 class AgentStatus(str, Enum):
     """Agent execution status."""
+
     PENDING = "pending"
     STARTING = "starting"
     ANALYZING = "analyzing"
@@ -35,6 +36,7 @@ class AgentStatus(str, Enum):
 @dataclass
 class AgentProgress:
     """Progress tracking for individual agents."""
+
     agent_id: str
     agent_type: str
     display_name: str
@@ -72,7 +74,7 @@ class AgentProgress:
             AgentStatus.TESTING: "cyan",
             AgentStatus.COMPLETING: "magenta",
             AgentStatus.COMPLETED: "bright_green",
-            AgentStatus.FAILED: "red"
+            AgentStatus.FAILED: "red",
         }
         return colors.get(self.status, "white")
 
@@ -96,23 +98,14 @@ class MissionControl:
     def _setup_layout(self):
         """Setup the Rich layout structure."""
         self.layout.split_column(
-            Layout(name="header", size=3),
-            Layout(name="main"),
-            Layout(name="footer", size=4)
+            Layout(name="header", size=3), Layout(name="main"), Layout(name="footer", size=4)
         )
 
         self.layout["main"].split_row(
-            Layout(name="agents", ratio=2),
-            Layout(name="context", ratio=1)
+            Layout(name="agents", ratio=2), Layout(name="context", ratio=1)
         )
 
-    def register_agent(
-        self,
-        agent_id: str,
-        agent_type: str,
-        display_name: str,
-        emoji: str
-    ) -> None:
+    def register_agent(self, agent_id: str, agent_type: str, display_name: str, emoji: str) -> None:
         """Register a new agent."""
         self.agents[agent_id] = AgentProgress(
             agent_id=agent_id,
@@ -123,7 +116,7 @@ class MissionControl:
             progress_pct=0,
             current_task="Waiting to start...",
             files_processed=[],
-            context_shared=False
+            context_shared=False,
         )
 
     def start_agent(self, agent_id: str, initial_task: str = "") -> None:
@@ -140,7 +133,7 @@ class MissionControl:
         status: AgentStatus,
         progress_pct: int,
         current_task: str,
-        files_processed: Optional[List[str]] = None
+        files_processed: Optional[List[str]] = None,
     ) -> None:
         """Update agent progress."""
         if agent_id in self.agents:
@@ -173,12 +166,7 @@ class MissionControl:
         stats_text.append(f"🔄 Context Reuse: {self.context_reuse_count}  ", style="green")
         stats_text.append(f"⚡ Time Saved: {self.time_saved_seconds:.1f}s", style="bright_green")
 
-        return Panel(
-            stats_text,
-            title=title,
-            border_style="blue",
-            padding=(0, 1)
-        )
+        return Panel(stats_text, title=title, border_style="blue", padding=(0, 1))
 
     def get_agents_panel(self) -> Panel:
         """Generate agents progress panel."""
@@ -200,7 +188,9 @@ class MissionControl:
             else:
                 filled = int(agent.progress_pct / 5)  # 20 chars total
                 bar = "█" * filled + "░" * (20 - filled)
-                progress_bar = f"[{agent.status_color}]{bar}[/{agent.status_color}] {agent.progress_pct}%"
+                progress_bar = (
+                    f"[{agent.status_color}]{bar}[/{agent.status_color}] {agent.progress_pct}%"
+                )
 
             # Agent name with context indicator
             agent_name = f"{agent.emoji} {agent.display_name}"
@@ -208,21 +198,23 @@ class MissionControl:
                 agent_name += " 🔗"
 
             # Status with color
-            status_text = f"[{agent.status_color}]{agent.status.value.title()}[/{agent.status_color}]"
+            status_text = (
+                f"[{agent.status_color}]{agent.status.value.title()}[/{agent.status_color}]"
+            )
 
             table.add_row(
                 agent_name,
                 status_text,
                 progress_bar,
-                agent.current_task[:30] + "..." if len(agent.current_task) > 30 else agent.current_task,
-                agent.duration
+                (
+                    agent.current_task[:30] + "..."
+                    if len(agent.current_task) > 30
+                    else agent.current_task
+                ),
+                agent.duration,
             )
 
-        return Panel(
-            table,
-            title="🤖 Agent Status",
-            border_style="green"
-        )
+        return Panel(table, title="🤖 Agent Status", border_style="green")
 
     def get_context_panel(self) -> Panel:
         """Generate context sharing panel."""
@@ -245,23 +237,19 @@ class MissionControl:
             efficiency = (self.time_saved_seconds / total_time) * 100
             context_table.add_row("Efficiency", f"{efficiency:.0f}%")
 
-        return Panel(
-            context_table,
-            title="📊 Context Sharing",
-            border_style="cyan"
-        )
+        return Panel(context_table, title="📊 Context Sharing", border_style="cyan")
 
     def get_footer_panel(self) -> Panel:
         """Generate footer panel with tips."""
         footer_text = Text()
         footer_text.append("💡 ", style="yellow")
-        footer_text.append("Multiple agents work in parallel sharing context to eliminate redundant analysis. ", style="dim")
+        footer_text.append(
+            "Multiple agents work in parallel sharing context to eliminate redundant analysis. ",
+            style="dim",
+        )
         footer_text.append("🔗 indicates context reuse.", style="blue")
 
-        return Panel(
-            footer_text,
-            border_style="dim"
-        )
+        return Panel(footer_text, border_style="dim")
 
     def render(self) -> Layout:
         """Render the complete mission control layout."""
@@ -276,12 +264,16 @@ class MissionControl:
         """Show final summary after workflow completion."""
         total_duration = (datetime.now() - self.start_time).total_seconds()
 
-        self.console.print("\n" + "="*70)
-        self.console.print(f"🎉 [bold green]DevFlow Mission Control Summary - Issue #{self.issue_number}[/bold green]")
-        self.console.print("="*70)
+        self.console.print("\n" + "=" * 70)
+        self.console.print(
+            f"🎉 [bold green]DevFlow Mission Control Summary - Issue #{self.issue_number}[/bold green]"
+        )
+        self.console.print("=" * 70)
 
         # Agent results
-        completed = sum(1 for agent in self.agents.values() if agent.status == AgentStatus.COMPLETED)
+        completed = sum(
+            1 for agent in self.agents.values() if agent.status == AgentStatus.COMPLETED
+        )
         failed = sum(1 for agent in self.agents.values() if agent.status == AgentStatus.FAILED)
 
         self.console.print(f"📊 Agents: {completed} completed, {failed} failed")
@@ -289,7 +281,9 @@ class MissionControl:
         # Time savings
         self.console.print(f"⏱️  Total Runtime: {total_duration:.1f}s")
         self.console.print(f"⚡ Time Saved by Context Reuse: {self.time_saved_seconds:.1f}s")
-        self.console.print(f"🎯 Efficiency Gain: {(self.time_saved_seconds/total_duration)*100:.0f}%")
+        self.console.print(
+            f"🎯 Efficiency Gain: {(self.time_saved_seconds/total_duration)*100:.0f}%"
+        )
 
         # Files analyzed
         total_files = set()
@@ -297,7 +291,7 @@ class MissionControl:
             total_files.update(agent.files_processed)
         self.console.print(f"📁 Unique Files Analyzed: {len(total_files)}")
 
-        self.console.print("="*70 + "\n")
+        self.console.print("=" * 70 + "\n")
 
 
 class LiveMissionControl:
@@ -310,7 +304,7 @@ class LiveMissionControl:
             mission_control.render(),
             console=mission_control.console,
             refresh_per_second=2,
-            screen=False
+            screen=False,
         )
 
     def __enter__(self):

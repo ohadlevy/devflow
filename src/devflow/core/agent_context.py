@@ -6,7 +6,7 @@ by sharing context between validation, implementation, and review agents.
 
 import json
 import logging
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AgentContext:
     """Context preserved from agent analysis."""
+
     agent_type: str
     stage: str
     files_analyzed: Set[str]
@@ -28,26 +29,26 @@ class AgentContext:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
-            'agent_type': self.agent_type,
-            'stage': self.stage,
-            'files_analyzed': list(self.files_analyzed),
-            'codebase_summary': self.codebase_summary,
-            'key_insights': self.key_insights,
-            'analysis_timestamp': self.analysis_timestamp,
-            'execution_time': self.execution_time
+            "agent_type": self.agent_type,
+            "stage": self.stage,
+            "files_analyzed": list(self.files_analyzed),
+            "codebase_summary": self.codebase_summary,
+            "key_insights": self.key_insights,
+            "analysis_timestamp": self.analysis_timestamp,
+            "execution_time": self.execution_time,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'AgentContext':
+    def from_dict(cls, data: Dict[str, Any]) -> "AgentContext":
         """Create from dictionary."""
         return cls(
-            agent_type=data['agent_type'],
-            stage=data['stage'],
-            files_analyzed=set(data['files_analyzed']),
-            codebase_summary=data['codebase_summary'],
-            key_insights=data['key_insights'],
-            analysis_timestamp=data['analysis_timestamp'],
-            execution_time=data['execution_time']
+            agent_type=data["agent_type"],
+            stage=data["stage"],
+            files_analyzed=set(data["files_analyzed"]),
+            codebase_summary=data["codebase_summary"],
+            key_insights=data["key_insights"],
+            analysis_timestamp=data["analysis_timestamp"],
+            execution_time=data["execution_time"],
         )
 
 
@@ -78,7 +79,8 @@ class ContextManager:
 
         # Find most relevant previous context
         relevant_contexts = [
-            ctx for ctx in self.contexts.values()
+            ctx
+            for ctx in self.contexts.values()
             if self._is_relevant_context(ctx.stage, target_stage)
         ]
 
@@ -118,9 +120,9 @@ class ContextManager:
     def _is_relevant_context(self, source_stage: str, target_stage: str) -> bool:
         """Check if context from source stage is relevant for target stage."""
         stage_flow = {
-            'validation': ['implementation', 'review'],
-            'implementation': ['review', 'finalization'],
-            'review': ['finalization', 'implementation']  # For iteration
+            "validation": ["implementation", "review"],
+            "implementation": ["review", "finalization"],
+            "review": ["finalization", "implementation"],  # For iteration
         }
 
         return target_stage in stage_flow.get(source_stage, [])
@@ -130,21 +132,17 @@ class ContextManager:
         return self.shared_files.copy()
 
     def extract_context_from_transcript(
-        self,
-        transcript: str,
-        agent_type: str,
-        stage: str,
-        execution_time: float
+        self, transcript: str, agent_type: str, stage: str, execution_time: float
     ) -> AgentContext:
         """Extract structured context from agent transcript."""
 
         # Extract files that were read
         files_analyzed = set()
-        lines = transcript.split('\n')
+        lines = transcript.split("\n")
         for line in lines:
-            if '📖 Reading' in line and '.py' in line:
+            if "📖 Reading" in line and ".py" in line:
                 # Extract filename from "📖 Reading filename.py"
-                parts = line.split('📖 Reading ')
+                parts = line.split("📖 Reading ")
                 if len(parts) > 1:
                     filename = parts[1].strip()
                     files_analyzed.add(filename)
@@ -152,14 +150,18 @@ class ContextManager:
         # Extract key insights from AI thinking
         insights = []
         for line in lines:
-            if line.startswith('💭') and len(line) > 10:
+            if line.startswith("💭") and len(line) > 10:
                 thought = line[2:].strip()
-                if any(keyword in thought.lower() for keyword in
-                      ['understand', 'implement', 'need', 'pattern', 'structure']):
-                    insights.append(thought[:100] + '...' if len(thought) > 100 else thought)
+                if any(
+                    keyword in thought.lower()
+                    for keyword in ["understand", "implement", "need", "pattern", "structure"]
+                ):
+                    insights.append(thought[:100] + "..." if len(thought) > 100 else thought)
 
         # Create summary from transcript
-        summary = f"Agent analyzed {len(files_analyzed)} files and provided {len(insights)} key insights"
+        summary = (
+            f"Agent analyzed {len(files_analyzed)} files and provided {len(insights)} key insights"
+        )
 
         return AgentContext(
             agent_type=agent_type,
@@ -168,5 +170,5 @@ class ContextManager:
             codebase_summary=summary,
             key_insights=insights[:5],  # Top 5 insights
             analysis_timestamp=datetime.now().isoformat(),
-            execution_time=execution_time
+            execution_time=execution_time,
         )

@@ -1,29 +1,26 @@
 """Issue processing command."""
 
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
 
 from rich.console import Console
 
-from devflow.adapters.github.client import GitHubPlatformAdapter
 from devflow.adapters.git.basic import BasicGitAdapter
+from devflow.adapters.github.client import GitHubPlatformAdapter
 from devflow.agents.base import MultiAgentCoordinator
 from devflow.agents.claude import ClaudeAgentProvider
 from devflow.agents.mock import MockAgentProvider
 from devflow.core.config import ProjectConfig
 from devflow.core.state_manager import StateManager
 from devflow.core.workflow_engine import WorkflowEngine
-from devflow.exceptions import WorkflowError, AgentError, PlatformError
+from devflow.exceptions import AgentError, PlatformError, WorkflowError
 
 console = Console()
 logger = logging.getLogger(__name__)
 
 
 def process_issue(
-    config: ProjectConfig,
-    issue_number: int,
-    auto_mode: bool = False,
-    dry_run: bool = False
+    config: ProjectConfig, issue_number: int, auto_mode: bool = False, dry_run: bool = False
 ) -> Dict[str, Any]:
     """Process an issue through the DevFlow pipeline.
 
@@ -57,7 +54,7 @@ def process_issue(
             config=config,
             platform_adapter=platform_adapter,
             agent_coordinator=agent_coordinator,
-            state_manager=state_manager
+            state_manager=state_manager,
         )
 
         # Validate environment before processing
@@ -65,14 +62,12 @@ def process_issue(
         if not workflow_engine.validate_environment():
             raise WorkflowError(
                 "Environment validation failed - fix issues before proceeding",
-                workflow_id=f"issue-{issue_number}"
+                workflow_id=f"issue-{issue_number}",
             )
 
         # Process the issue
         result = workflow_engine.process_issue(
-            issue_number=issue_number,
-            auto_mode=auto_mode,
-            dry_run=dry_run
+            issue_number=issue_number, auto_mode=auto_mode, dry_run=dry_run
         )
 
         console.print(f"\n[green]✓ Workflow completed for issue #{issue_number}[/green]")
@@ -80,16 +75,13 @@ def process_issue(
 
     except (AgentError, PlatformError) as e:
         logger.error(f"Service error during processing: {str(e)}")
-        raise WorkflowError(
-            f"Service error: {str(e)}",
-            workflow_id=f"issue-{issue_number}"
-        ) from e
+        raise WorkflowError(f"Service error: {str(e)}", workflow_id=f"issue-{issue_number}") from e
 
     except Exception as e:
         logger.error(f"Unexpected error during processing: {str(e)}")
         raise WorkflowError(
             f"Failed to process issue #{issue_number}: {str(e)}",
-            workflow_id=f"issue-{issue_number}"
+            workflow_id=f"issue-{issue_number}",
         ) from e
 
 
@@ -110,7 +102,7 @@ def _create_platform_adapter(config: ProjectConfig, dry_run: bool = False):
         adapter_config = {
             "repo_owner": config.repo_owner,
             "repo_name": config.repo_name,
-            "project_root": str(config.project_root)
+            "project_root": str(config.project_root),
         }
 
         if dry_run:
@@ -125,7 +117,7 @@ def _create_platform_adapter(config: ProjectConfig, dry_run: bool = False):
         if not adapter.validate_connection():
             raise PlatformError(
                 f"Failed to connect to repository: {config.repo_owner}/{config.repo_name}",
-                platform=adapter.name
+                platform=adapter.name,
             )
 
         console.print(f"[green]✓ {adapter.display_name} adapter initialized[/green]")
@@ -133,12 +125,13 @@ def _create_platform_adapter(config: ProjectConfig, dry_run: bool = False):
 
     except Exception as e:
         raise PlatformError(
-            f"Failed to create platform adapter: {str(e)}",
-            platform="unknown"
+            f"Failed to create platform adapter: {str(e)}", platform="unknown"
         ) from e
 
 
-def _create_agent_coordinator(config: ProjectConfig, skip_validation: bool = False) -> MultiAgentCoordinator:
+def _create_agent_coordinator(
+    config: ProjectConfig, skip_validation: bool = False
+) -> MultiAgentCoordinator:
     """Create agent coordinator with configured agents.
 
     Args:
@@ -169,10 +162,7 @@ def _create_agent_coordinator(config: ProjectConfig, skip_validation: bool = Fal
         else:
             # Add Claude agent if configured
             if config.agents.primary == "claude" or "claude" in config.agents.review_sources:
-                claude_config = {
-                    "use_claude_cli": True,
-                    "model": config.agents.claude_model
-                }
+                claude_config = {"use_claude_cli": True, "model": config.agents.claude_model}
 
                 try:
                     claude_agent = ClaudeAgentProvider(claude_config)
@@ -184,7 +174,7 @@ def _create_agent_coordinator(config: ProjectConfig, skip_validation: bool = Fal
             if not agents:
                 raise AgentError(
                     "No AI agents could be initialized. Check your configuration and service availability.",
-                    operation="agent_initialization"
+                    operation="agent_initialization",
                 )
 
         return MultiAgentCoordinator(agents)
@@ -193,6 +183,5 @@ def _create_agent_coordinator(config: ProjectConfig, skip_validation: bool = Fal
         if isinstance(e, AgentError):
             raise
         raise AgentError(
-            f"Failed to create agent coordinator: {str(e)}",
-            operation="coordinator_creation"
+            f"Failed to create agent coordinator: {str(e)}", operation="coordinator_creation"
         ) from e
