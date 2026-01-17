@@ -13,8 +13,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from devflow.agents.base import AgentProvider, ImplementationContext
 from devflow.adapters.base import PlatformAdapter, ReviewDecision
+from devflow.agents.base import AgentProvider, ImplementationContext
 from devflow.exceptions import AutoFixError
 
 logger = logging.getLogger(__name__)
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 class FeedbackType(str, Enum):
     """Types of feedback that can trigger auto-fixes."""
+
     CI_FAILURE = "ci_failure"
     REVIEW_FEEDBACK = "review_feedback"
     MERGE_CONFLICT = "merge_conflict"
@@ -30,15 +31,17 @@ class FeedbackType(str, Enum):
 
 class FixPriority(str, Enum):
     """Priority levels for auto-fixes."""
-    CRITICAL = "critical"      # Security, build breaking
-    HIGH = "high"             # Test failures, linting errors
-    MEDIUM = "medium"         # Style issues, warnings
-    LOW = "low"              # Suggestions, optimizations
+
+    CRITICAL = "critical"  # Security, build breaking
+    HIGH = "high"  # Test failures, linting errors
+    MEDIUM = "medium"  # Style issues, warnings
+    LOW = "low"  # Suggestions, optimizations
 
 
 @dataclass
 class FeedbackItem:
     """Represents a single feedback item that needs fixing."""
+
     type: FeedbackType
     priority: FixPriority
     title: str
@@ -52,6 +55,7 @@ class FeedbackItem:
 @dataclass
 class AutoFixResult:
     """Result of an auto-fix attempt."""
+
     success: bool
     fixes_applied: List[str]
     files_modified: List[str]
@@ -64,7 +68,9 @@ class FeedbackDetector(ABC):
     """Abstract base for feedback detection systems."""
 
     @abstractmethod
-    def detect_feedback(self, pr_number: int, platform_adapter: PlatformAdapter) -> List[FeedbackItem]:
+    def detect_feedback(
+        self, pr_number: int, platform_adapter: PlatformAdapter
+    ) -> List[FeedbackItem]:
         """Detect feedback items that need fixing."""
         pass
 
@@ -72,7 +78,9 @@ class FeedbackDetector(ABC):
 class CIFailureDetector(FeedbackDetector):
     """Detects and parses CI/CD pipeline failures."""
 
-    def detect_feedback(self, pr_number: int, platform_adapter: PlatformAdapter) -> List[FeedbackItem]:
+    def detect_feedback(
+        self, pr_number: int, platform_adapter: PlatformAdapter
+    ) -> List[FeedbackItem]:
         """Detect CI failures from GitHub Actions."""
         feedback_items = []
 
@@ -86,13 +94,13 @@ class CIFailureDetector(FeedbackDetector):
                 {
                     "name": "test (3.11)",
                     "status": "failure",
-                    "log": "flake8 src/ tests/ --count --select=E9,F63,F7,F82\nsrc/devflow/core/workflow_engine.py:1054:80: E501 line too long (87 > 79 characters)"
+                    "log": "flake8 src/ tests/ --count --select=E9,F63,F7,F82\nsrc/devflow/core/workflow_engine.py:1054:80: E501 line too long (87 > 79 characters)",
                 },
                 {
                     "name": "docs",
                     "status": "failure",
-                    "log": "sphinx-build: error: Could not find documentation for new streaming methods"
-                }
+                    "log": "sphinx-build: error: Could not find documentation for new streaming methods",
+                },
             ]
 
             for failure in failures:
@@ -114,27 +122,33 @@ class CIFailureDetector(FeedbackDetector):
         for match in re.finditer(flake8_pattern, log):
             file_path, line_num, col_num, error_code, message = match.groups()
 
-            items.append(FeedbackItem(
-                type=FeedbackType.CI_FAILURE,
-                priority=FixPriority.HIGH if error_code.startswith('E9') else FixPriority.MEDIUM,
-                title=f"Linting Error: {error_code}",
-                description=message,
-                file_path=file_path,
-                line_number=int(line_num),
-                suggestion=self._get_flake8_fix_suggestion(error_code, message),
-                raw_data=failure
-            ))
+            items.append(
+                FeedbackItem(
+                    type=FeedbackType.CI_FAILURE,
+                    priority=(
+                        FixPriority.HIGH if error_code.startswith("E9") else FixPriority.MEDIUM
+                    ),
+                    title=f"Linting Error: {error_code}",
+                    description=message,
+                    file_path=file_path,
+                    line_number=int(line_num),
+                    suggestion=self._get_flake8_fix_suggestion(error_code, message),
+                    raw_data=failure,
+                )
+            )
 
         # Parse documentation errors
         if "sphinx-build" in log and "error" in log:
-            items.append(FeedbackItem(
-                type=FeedbackType.CI_FAILURE,
-                priority=FixPriority.MEDIUM,
-                title="Documentation Build Error",
-                description="Missing documentation for new code",
-                suggestion="Add docstrings to new methods and update documentation",
-                raw_data=failure
-            ))
+            items.append(
+                FeedbackItem(
+                    type=FeedbackType.CI_FAILURE,
+                    priority=FixPriority.MEDIUM,
+                    title="Documentation Build Error",
+                    description="Missing documentation for new code",
+                    suggestion="Add docstrings to new methods and update documentation",
+                    raw_data=failure,
+                )
+            )
 
         return items
 
@@ -145,7 +159,7 @@ class CIFailureDetector(FeedbackDetector):
             "E302": "Add 2 blank lines before class or function definition",
             "E303": "Remove extra blank lines",
             "F401": "Remove unused import",
-            "F841": "Remove unused variable"
+            "F841": "Remove unused variable",
         }
         return suggestions.get(error_code, "Fix linting issue")
 
@@ -153,16 +167,16 @@ class CIFailureDetector(FeedbackDetector):
 class ReviewFeedbackDetector(FeedbackDetector):
     """Detects and parses code review feedback."""
 
-    def detect_feedback(self, pr_number: int, platform_adapter: PlatformAdapter) -> List[FeedbackItem]:
+    def detect_feedback(
+        self, pr_number: int, platform_adapter: PlatformAdapter
+    ) -> List[FeedbackItem]:
         """Detect review feedback that requests changes."""
         feedback_items = []
 
         try:
             # Get PR reviews from platform
             reviews = platform_adapter.list_pull_request_reviews(
-                platform_adapter.owner,
-                platform_adapter.repo,
-                pr_number
+                platform_adapter.owner, platform_adapter.repo, pr_number
             )
 
             for review in reviews:
@@ -172,13 +186,13 @@ class ReviewFeedbackDetector(FeedbackDetector):
 
             # Also check for PR comments with change requests
             pr = platform_adapter.get_pull_request(
-                platform_adapter.owner,
-                platform_adapter.repo,
-                pr_number
+                platform_adapter.owner, platform_adapter.repo, pr_number
             )
 
             # Parse PR description for follow-up requests
-            if pr.body and any(keyword in pr.body.lower() for keyword in ["fix", "change", "update", "todo"]):
+            if pr.body and any(
+                keyword in pr.body.lower() for keyword in ["fix", "change", "update", "todo"]
+            ):
                 items = self._parse_pr_body_feedback(pr.body, pr_number)
                 feedback_items.extend(items)
 
@@ -189,7 +203,7 @@ class ReviewFeedbackDetector(FeedbackDetector):
                 {
                     "state": "REQUEST_CHANGES",
                     "body": "Please add error handling for the subprocess calls in the streaming validation method.",
-                    "user": "senior_developer"
+                    "user": "senior_developer",
                 }
             ]
 
@@ -211,53 +225,58 @@ class ReviewFeedbackDetector(FeedbackDetector):
         feedback_patterns = [
             # Error handling requests
             {
-                "patterns": ["error handling", "try-catch", "exception handling", "error management"],
+                "patterns": [
+                    "error handling",
+                    "try-catch",
+                    "exception handling",
+                    "error management",
+                ],
                 "title": "Add Error Handling",
                 "priority": FixPriority.HIGH,
-                "suggestion": "Add try-catch blocks and proper error handling for robustness"
+                "suggestion": "Add try-catch blocks and proper error handling for robustness",
             },
             # Documentation requests
             {
                 "patterns": ["documentation", "docstring", "comment", "explain", "document"],
                 "title": "Improve Documentation",
                 "priority": FixPriority.MEDIUM,
-                "suggestion": "Add comprehensive docstrings and inline comments"
+                "suggestion": "Add comprehensive docstrings and inline comments",
             },
             # Testing requests
             {
                 "patterns": ["test", "unit test", "coverage", "test case"],
                 "title": "Add Tests",
                 "priority": FixPriority.HIGH,
-                "suggestion": "Add unit tests to ensure code reliability"
+                "suggestion": "Add unit tests to ensure code reliability",
             },
             # Security concerns
             {
                 "patterns": ["security", "vulnerability", "sanitize", "validate input"],
                 "title": "Security Improvement",
                 "priority": FixPriority.CRITICAL,
-                "suggestion": "Address security concerns and add input validation"
+                "suggestion": "Address security concerns and add input validation",
             },
             # Performance issues
             {
                 "patterns": ["performance", "optimize", "efficiency", "slow"],
                 "title": "Performance Optimization",
                 "priority": FixPriority.MEDIUM,
-                "suggestion": "Optimize code for better performance"
+                "suggestion": "Optimize code for better performance",
             },
             # Type annotations
             {
                 "patterns": ["type hint", "type annotation", "typing", "mypy"],
                 "title": "Add Type Annotations",
                 "priority": FixPriority.MEDIUM,
-                "suggestion": "Add proper type annotations for better code clarity"
+                "suggestion": "Add proper type annotations for better code clarity",
             },
             # Code style
             {
                 "patterns": ["style", "format", "lint", "clean up"],
                 "title": "Code Style Fix",
                 "priority": FixPriority.LOW,
-                "suggestion": "Fix code style and formatting issues"
-            }
+                "suggestion": "Fix code style and formatting issues",
+            },
         ]
 
         # Extract file and line references
@@ -266,27 +285,31 @@ class ReviewFeedbackDetector(FeedbackDetector):
         for pattern_group in feedback_patterns:
             if any(pattern in body.lower() for pattern in pattern_group["patterns"]):
                 for file_ref in file_refs or [None]:
-                    items.append(FeedbackItem(
-                        type=FeedbackType.REVIEW_FEEDBACK,
-                        priority=pattern_group["priority"],
-                        title=pattern_group["title"],
-                        description=f"{user}: {body[:200]}{'...' if len(body) > 200 else ''}",
-                        file_path=file_ref.get("path") if file_ref else None,
-                        line_number=file_ref.get("line") if file_ref else None,
-                        suggestion=pattern_group["suggestion"],
-                        raw_data=review
-                    ))
+                    items.append(
+                        FeedbackItem(
+                            type=FeedbackType.REVIEW_FEEDBACK,
+                            priority=pattern_group["priority"],
+                            title=pattern_group["title"],
+                            description=f"{user}: {body[:200]}{'...' if len(body) > 200 else ''}",
+                            file_path=file_ref.get("path") if file_ref else None,
+                            line_number=file_ref.get("line") if file_ref else None,
+                            suggestion=pattern_group["suggestion"],
+                            raw_data=review,
+                        )
+                    )
 
         # If no patterns matched, create generic feedback item
         if not items:
-            items.append(FeedbackItem(
-                type=FeedbackType.REVIEW_FEEDBACK,
-                priority=FixPriority.MEDIUM,
-                title="Review Feedback",
-                description=f"{user}: {body}",
-                suggestion="Address the reviewer's feedback",
-                raw_data=review
-            ))
+            items.append(
+                FeedbackItem(
+                    type=FeedbackType.REVIEW_FEEDBACK,
+                    priority=FixPriority.MEDIUM,
+                    title="Review Feedback",
+                    description=f"{user}: {body}",
+                    suggestion="Address the reviewer's feedback",
+                    raw_data=review,
+                )
+            )
 
         return items
 
@@ -296,18 +319,21 @@ class ReviewFeedbackDetector(FeedbackDetector):
 
         # Look for TODO comments in PR body
         import re
-        todo_pattern = r'(?i)(?:todo|fixme|hack):\s*(.+?)(?:\n|$)'
+
+        todo_pattern = r"(?i)(?:todo|fixme|hack):\s*(.+?)(?:\n|$)"
 
         for match in re.finditer(todo_pattern, body):
             todo_text = match.group(1).strip()
-            items.append(FeedbackItem(
-                type=FeedbackType.REVIEW_FEEDBACK,
-                priority=FixPriority.MEDIUM,
-                title="TODO Item",
-                description=f"PR #{pr_number} TODO: {todo_text}",
-                suggestion="Complete the TODO item before merging",
-                raw_data={"pr_body": body, "todo": todo_text}
-            ))
+            items.append(
+                FeedbackItem(
+                    type=FeedbackType.REVIEW_FEEDBACK,
+                    priority=FixPriority.MEDIUM,
+                    title="TODO Item",
+                    description=f"PR #{pr_number} TODO: {todo_text}",
+                    suggestion="Complete the TODO item before merging",
+                    raw_data={"pr_body": body, "todo": todo_text},
+                )
+            )
 
         return items
 
@@ -317,24 +343,18 @@ class ReviewFeedbackDetector(FeedbackDetector):
 
         # Pattern for file:line references
         file_patterns = [
-            r'([a-zA-Z0-9_/.-]+\.py):(\d+)',  # file.py:123
-            r'`([a-zA-Z0-9_/.-]+\.py)`',      # `file.py`
-            r'in ([a-zA-Z0-9_/.-]+\.py)',     # in file.py
+            r"([a-zA-Z0-9_/.-]+\.py):(\d+)",  # file.py:123
+            r"`([a-zA-Z0-9_/.-]+\.py)`",  # `file.py`
+            r"in ([a-zA-Z0-9_/.-]+\.py)",  # in file.py
         ]
 
         refs = []
         for pattern in file_patterns:
             for match in re.finditer(pattern, text):
-                if ':' in match.group(0) and len(match.groups()) >= 2:
-                    refs.append({
-                        "path": match.group(1),
-                        "line": int(match.group(2))
-                    })
+                if ":" in match.group(0) and len(match.groups()) >= 2:
+                    refs.append({"path": match.group(1), "line": int(match.group(2))})
                 else:
-                    refs.append({
-                        "path": match.group(1),
-                        "line": None
-                    })
+                    refs.append({"path": match.group(1), "line": None})
 
         return refs
 
@@ -346,17 +366,14 @@ class AutoFixEngine:
         self,
         platform_adapter: PlatformAdapter,
         agent_provider: AgentProvider,
-        working_directory: str
+        working_directory: str,
     ):
         self.platform_adapter = platform_adapter
         self.agent_provider = agent_provider
         self.working_directory = Path(working_directory)
 
         # Initialize feedback detectors
-        self.detectors = [
-            CIFailureDetector(),
-            ReviewFeedbackDetector()
-        ]
+        self.detectors = [CIFailureDetector(), ReviewFeedbackDetector()]
 
     def run_auto_fix_cycle(self, pr_number: int, max_iterations: int = 3) -> AutoFixResult:
         """Run complete auto-fix cycle for a PR."""
@@ -375,7 +392,7 @@ class AutoFixEngine:
                     fixes_applied=[],
                     files_modified=[],
                     commit_message="No fixes needed",
-                    validation_passed=True
+                    validation_passed=True,
                 )
 
             # Prioritize and group feedback
@@ -406,7 +423,7 @@ class AutoFixEngine:
             files_modified=[],
             commit_message="",
             validation_passed=False,
-            error_message=f"Max iterations ({max_iterations}) reached"
+            error_message=f"Max iterations ({max_iterations}) reached",
         )
 
     def _detect_all_feedback(self, pr_number: int) -> List[FeedbackItem]:
@@ -428,12 +445,11 @@ class AutoFixEngine:
             FixPriority.CRITICAL: 0,
             FixPriority.HIGH: 1,
             FixPriority.MEDIUM: 2,
-            FixPriority.LOW: 3
+            FixPriority.LOW: 3,
         }
 
         return sorted(
-            feedback_items,
-            key=lambda item: (priority_order[item.priority], item.type.value)
+            feedback_items, key=lambda item: (priority_order[item.priority], item.type.value)
         )
 
     def _apply_fixes(self, feedback_items: List[FeedbackItem]) -> AutoFixResult:
@@ -458,17 +474,21 @@ class AutoFixEngine:
                     # Apply fixes using Claude agent
                     fix_result = self._apply_ai_fixes(fix_prompt, group_items)
 
-                    if fix_result['success']:
-                        fixes_applied.extend(fix_result['fixes_applied'])
-                        files_modified.update(fix_result['files_modified'])
+                    if fix_result["success"]:
+                        fixes_applied.extend(fix_result["fixes_applied"])
+                        files_modified.update(fix_result["files_modified"])
 
                         # Validate fixes if possible
-                        if fix_result['files_modified']:
-                            validation_result = self._validate_fixes(fix_result['files_modified'], group_items)
-                            if not validation_result['success']:
-                                validation_errors.extend(validation_result['errors'])
+                        if fix_result["files_modified"]:
+                            validation_result = self._validate_fixes(
+                                fix_result["files_modified"], group_items
+                            )
+                            if not validation_result["success"]:
+                                validation_errors.extend(validation_result["errors"])
                     else:
-                        logger.warning(f"Failed to apply {group_name} fixes: {fix_result.get('error', 'Unknown error')}")
+                        logger.warning(
+                            f"Failed to apply {group_name} fixes: {fix_result.get('error', 'Unknown error')}"
+                        )
 
                 except Exception as e:
                     logger.error(f"Error processing {group_name} fixes: {str(e)}")
@@ -485,7 +505,7 @@ class AutoFixEngine:
                 files_modified=list(files_modified),
                 commit_message=commit_message,
                 validation_passed=len(validation_errors) == 0,
-                error_message="; ".join(validation_errors) if validation_errors else None
+                error_message="; ".join(validation_errors) if validation_errors else None,
             )
 
         except Exception as e:
@@ -496,10 +516,12 @@ class AutoFixEngine:
                 files_modified=[],
                 commit_message="",
                 validation_passed=False,
-                error_message=str(e)
+                error_message=str(e),
             )
 
-    def _group_feedback_for_fixing(self, feedback_items: List[FeedbackItem]) -> Dict[str, List[FeedbackItem]]:
+    def _group_feedback_for_fixing(
+        self, feedback_items: List[FeedbackItem]
+    ) -> Dict[str, List[FeedbackItem]]:
         """Group feedback items for efficient batch processing."""
         groups = {
             "critical_security": [],
@@ -509,7 +531,7 @@ class AutoFixEngine:
             "documentation": [],
             "code_style": [],
             "performance": [],
-            "general": []
+            "general": [],
         }
 
         for item in feedback_items:
@@ -538,10 +560,13 @@ class AutoFixEngine:
 
     def _create_specialized_fix_prompt(self, items: List[FeedbackItem], group_type: str) -> str:
         """Create specialized prompts for different types of fixes."""
-        base_context = f"You are an expert developer fixing {group_type} issues in a Python codebase.\n\n"
+        base_context = (
+            f"You are an expert developer fixing {group_type} issues in a Python codebase.\n\n"
+        )
 
         prompt_templates = {
-            "critical_security": base_context + """
+            "critical_security": base_context
+            + """
 CRITICAL SECURITY FIXES REQUIRED:
 Your task is to fix critical security vulnerabilities. This is high priority.
 
@@ -554,7 +579,8 @@ Security Guidelines:
 
 Issues to fix:
 """,
-            "linting_errors": base_context + """
+            "linting_errors": base_context
+            + """
 LINTING AND CODE STYLE FIXES:
 Fix all linting errors to meet Python code quality standards.
 
@@ -566,7 +592,8 @@ Common fixes needed:
 
 Issues to fix:
 """,
-            "type_errors": base_context + """
+            "type_errors": base_context
+            + """
 TYPE ANNOTATION AND MYPY FIXES:
 Fix type annotation issues for better code clarity and type safety.
 
@@ -578,7 +605,8 @@ Common fixes needed:
 
 Issues to fix:
 """,
-            "test_failures": base_context + """
+            "test_failures": base_context
+            + """
 TEST FAILURE FIXES:
 Fix failing tests to ensure code reliability.
 
@@ -590,7 +618,8 @@ Testing guidelines:
 
 Issues to fix:
 """,
-            "documentation": base_context + """
+            "documentation": base_context
+            + """
 DOCUMENTATION IMPROVEMENTS:
 Add comprehensive documentation to improve code maintainability.
 
@@ -602,7 +631,8 @@ Documentation standards:
 
 Issues to fix:
 """,
-            "general": base_context + """
+            "general": base_context
+            + """
 GENERAL CODE IMPROVEMENTS:
 Fix various code quality and functionality issues.
 
@@ -613,7 +643,7 @@ General guidelines:
 - Optimize for correctness first, then performance
 
 Issues to fix:
-"""
+""",
         }
 
         prompt = prompt_templates.get(group_type, prompt_templates["general"])
@@ -639,7 +669,9 @@ Issues to fix:
 
         return prompt
 
-    def _apply_ai_fixes(self, fix_prompt: str, feedback_items: List[FeedbackItem]) -> Dict[str, Any]:
+    def _apply_ai_fixes(
+        self, fix_prompt: str, feedback_items: List[FeedbackItem]
+    ) -> Dict[str, Any]:
         """Apply fixes using Claude AI agent."""
         try:
             # Import here to avoid circular imports
@@ -663,11 +695,11 @@ Issues to fix:
                 project_context={
                     "auto_fix_mode": True,
                     "feedback_items": [item.__dict__ for item in feedback_items],
-                    "fix_prompt": fix_prompt
+                    "fix_prompt": fix_prompt,
                 },
                 validation_result={},
                 previous_iterations=[],
-                constraints={"max_files": 10, "safe_mode": True}
+                constraints={"max_files": 10, "safe_mode": True},
             )
 
             # Apply fixes using Claude
@@ -680,24 +712,21 @@ Issues to fix:
                 files_modified = self._extract_modified_files_from_response(impl_response)
 
                 return {
-                    'success': True,
-                    'fixes_applied': fixes_applied,
-                    'files_modified': files_modified,
-                    'ai_response': impl_response
+                    "success": True,
+                    "fixes_applied": fixes_applied,
+                    "files_modified": files_modified,
+                    "ai_response": impl_response,
                 }
             else:
                 return {
-                    'success': False,
-                    'error': f"AI agent failed: {impl_response.message}",
-                    'ai_response': impl_response
+                    "success": False,
+                    "error": f"AI agent failed: {impl_response.message}",
+                    "ai_response": impl_response,
                 }
 
         except Exception as e:
             logger.error(f"AI fix application failed: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _parse_ai_fix_response(self, response, feedback_items: List[FeedbackItem]) -> List[str]:
         """Parse AI response to determine what fixes were actually applied."""
@@ -725,21 +754,24 @@ Issues to fix:
         files = []
 
         # Parse response data for file modifications
-        if hasattr(response, 'data') and response.data:
-            if 'files_changed' in response.data:
-                files.extend(response.data['files_changed'])
-            elif 'modified_files' in response.data:
-                files.extend(response.data['modified_files'])
+        if hasattr(response, "data") and response.data:
+            if "files_changed" in response.data:
+                files.extend(response.data["files_changed"])
+            elif "modified_files" in response.data:
+                files.extend(response.data["modified_files"])
 
         # Parse response message for file mentions
         import re
-        file_pattern = r'([a-zA-Z0-9_/.-]+\.py)'
+
+        file_pattern = r"([a-zA-Z0-9_/.-]+\.py)"
         message_files = re.findall(file_pattern, response.message)
         files.extend(message_files)
 
         return list(set(files))  # Remove duplicates
 
-    def _validate_fixes(self, files_modified: List[str], feedback_items: List[FeedbackItem]) -> Dict[str, Any]:
+    def _validate_fixes(
+        self, files_modified: List[str], feedback_items: List[FeedbackItem]
+    ) -> Dict[str, Any]:
         """Validate that fixes were applied correctly."""
         errors = []
 
@@ -755,18 +787,14 @@ Issues to fix:
             # - Run type checking to verify type errors were resolved
             # - Run tests to ensure functionality wasn't broken
 
-            return {
-                'success': len(errors) == 0,
-                'errors': errors
-            }
+            return {"success": len(errors) == 0, "errors": errors}
 
         except Exception as e:
-            return {
-                'success': False,
-                'errors': [f"Validation failed: {str(e)}"]
-            }
+            return {"success": False, "errors": [f"Validation failed: {str(e)}"]}
 
-    def _generate_commit_message(self, fixes_applied: List[str], feedback_items: List[FeedbackItem]) -> str:
+    def _generate_commit_message(
+        self, fixes_applied: List[str], feedback_items: List[FeedbackItem]
+    ) -> str:
         """Generate a descriptive commit message for auto-fixes."""
         if not fixes_applied:
             return "chore: automated fixes (no changes applied)"
@@ -858,20 +886,20 @@ Issues to fix:
 
             # Add all modified files to git
             add_result = subprocess.run(
-                ['git', 'add'] + fix_result.files_modified,
+                ["git", "add"] + fix_result.files_modified,
                 cwd=self.working_directory,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
 
             # Check if there are actually changes to commit
             status_result = subprocess.run(
-                ['git', 'status', '--porcelain'],
+                ["git", "status", "--porcelain"],
                 cwd=self.working_directory,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
 
             if not status_result.stdout.strip():
@@ -880,11 +908,11 @@ Issues to fix:
 
             # Commit the changes
             commit_result = subprocess.run(
-                ['git', 'commit', '-m', fix_result.commit_message],
+                ["git", "commit", "-m", fix_result.commit_message],
                 cwd=self.working_directory,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
 
             logger.info(f"Committed auto-fixes: {commit_result.stdout.strip()}")
@@ -893,21 +921,21 @@ Issues to fix:
             try:
                 # Get current branch name
                 branch_result = subprocess.run(
-                    ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+                    ["git", "rev-parse", "--abbrev-ref", "HEAD"],
                     cwd=self.working_directory,
                     capture_output=True,
                     text=True,
-                    check=True
+                    check=True,
                 )
                 current_branch = branch_result.stdout.strip()
 
                 # Push to remote
                 push_result = subprocess.run(
-                    ['git', 'push', 'origin', current_branch],
+                    ["git", "push", "origin", current_branch],
                     cwd=self.working_directory,
                     capture_output=True,
                     text=True,
-                    check=True
+                    check=True,
                 )
 
                 logger.info(f"Pushed auto-fixes to {current_branch}: {push_result.stdout.strip()}")

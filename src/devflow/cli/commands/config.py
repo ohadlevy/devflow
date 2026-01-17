@@ -1,17 +1,14 @@
 """Configuration management command."""
 
 from pathlib import Path
-from typing import Optional, Any, Union
+from typing import Any, Optional, Union
 
 from devflow.core.config import ProjectConfig, load_config
 from devflow.exceptions import ConfigurationError, ValidationError
 
 
 def manage_config(
-    key: str,
-    value: Optional[str] = None,
-    unset: bool = False,
-    config_file: Optional[Path] = None
+    key: str, value: Optional[str] = None, unset: bool = False, config_file: Optional[Path] = None
 ) -> Union[str, None]:
     """Manage DevFlow configuration.
 
@@ -112,6 +109,7 @@ def _set_config_value(config: ProjectConfig, key: str, value: str, config_path: 
         # Handle common configuration keys
         if key == "maturity_level":
             from devflow.core.config import ProjectMaturity
+
             if value not in ProjectMaturity.get_all_levels():
                 valid_levels = ", ".join(ProjectMaturity.get_all_levels())
                 raise ValidationError(f"Invalid maturity level: {value}. Valid: {valid_levels}")
@@ -180,6 +178,7 @@ def _unset_config_value(config: ProjectConfig, key: str, config_path: Path) -> N
     try:
         if key == "maturity_level":
             from devflow.core.config import ProjectMaturity
+
             config.maturity_level = ProjectMaturity.EARLY_STAGE
 
         elif key == "platforms.primary":

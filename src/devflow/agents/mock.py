@@ -12,14 +12,14 @@ from devflow.agents.base import (
     ImplementationContext,
     ImplementationResponse,
     ImplementationResult,
-    ReviewContext,
-    ReviewResponse,
-    ReviewDecision,
     IssueSeverity,
+    ReviewContext,
+    ReviewDecision,
+    ReviewResponse,
     ValidationContext,
     ValidationResponse,
     ValidationResult,
-    WorkflowContext
+    WorkflowContext,
 )
 from devflow.exceptions import AgentError
 
@@ -61,7 +61,7 @@ class MockAgentProvider(AgentProvider):
             AgentCapability.IMPLEMENTATION,
             AgentCapability.REVIEW,
             AgentCapability.ANALYSIS,
-            AgentCapability.DOCUMENTATION
+            AgentCapability.DOCUMENTATION,
         ]
 
     @property
@@ -91,12 +91,14 @@ class MockAgentProvider(AgentProvider):
                 data={"mock": True},
                 result=ValidationResult.INVALID,
                 confidence=0.0,
-                reasoning="Simulated failure for testing"
+                reasoning="Simulated failure for testing",
             )
 
         # Generate realistic mock validation response
         issue = context.issue
-        complexity = "SIMPLE" if len(issue.body) < 100 else "MEDIUM" if len(issue.body) < 500 else "COMPLEX"
+        complexity = (
+            "SIMPLE" if len(issue.body) < 100 else "MEDIUM" if len(issue.body) < 500 else "COMPLEX"
+        )
 
         response_message = f"""## 🤖 Mock Validation Analysis
 
@@ -127,7 +129,7 @@ This is a mock response generated for testing purposes."""
             reasoning="Mock analysis of issue requirements and feasibility",
             estimated_complexity=complexity,
             clarifications_needed=[],
-            suggested_labels=["automated", "validated"]
+            suggested_labels=["automated", "validated"],
         )
 
     def _implement_changes_impl(self, context: ImplementationContext) -> ImplementationResponse:
@@ -138,7 +140,7 @@ This is a mock response generated for testing purposes."""
                 message="Mock implementation failed",
                 data={"mock": True},
                 result=ImplementationResult.FAILED,
-                confidence=0.0
+                confidence=0.0,
             )
 
         # Generate realistic mock implementation response
@@ -172,7 +174,7 @@ This is a mock implementation for testing purposes."""
             commits_made=["feat: implement mock feature for testing"],
             tests_added=True,
             documentation_updated=False,
-            follow_up_needed=[]
+            follow_up_needed=[],
         )
 
     def _review_code_impl(self, context: ReviewContext) -> ReviewResponse:
@@ -184,7 +186,7 @@ This is a mock implementation for testing purposes."""
                 data={"mock": True},
                 decision=ReviewDecision.COMMENT,
                 severity=IssueSeverity.INFO,
-                confidence=0.0
+                confidence=0.0,
             )
 
         # Generate realistic mock review response
@@ -241,7 +243,7 @@ This is a mock review for testing purposes."""
             issues_found=[],
             suggestions_made=[],
             security_concerns=[],
-            performance_notes=[]
+            performance_notes=[],
         )
 
     def _analyze_codebase_impl(self, context: WorkflowContext) -> Dict[str, Any]:
@@ -250,17 +252,13 @@ This is a mock review for testing purposes."""
             "analysis_type": "mock",
             "project_name": context.project_name,
             "summary": "Mock codebase analysis completed",
-            "recommendations": [
-                "Continue development",
-                "Add more tests",
-                "Improve documentation"
-            ],
+            "recommendations": ["Continue development", "Add more tests", "Improve documentation"],
             "metrics": {
                 "complexity": "moderate",
                 "maintainability": "good",
-                "test_coverage": "adequate"
+                "test_coverage": "adequate",
             },
-            "mock": True
+            "mock": True,
         }
 
     def _generate_documentation_impl(self, context: WorkflowContext) -> Dict[str, Any]:
@@ -270,5 +268,5 @@ This is a mock review for testing purposes."""
             "project_name": context.project_name,
             "files_generated": ["README.md", "API_DOCS.md"],
             "summary": "Mock documentation generation completed",
-            "mock": True
+            "mock": True,
         }

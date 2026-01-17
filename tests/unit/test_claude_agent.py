@@ -1,20 +1,29 @@
 """Unit tests for Claude AI agent."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
+from unittest.mock import MagicMock, Mock, patch
 
-from devflow.agents.claude import ClaudeAgentProvider
+import pytest
+
+from devflow.adapters.base import Issue, IssueState, PullRequest, PullRequestState
 from devflow.agents.base import (
-    AgentCapability, ValidationContext, ImplementationContext,
-    ReviewContext, WorkflowContext, ValidationResult,
-    ImplementationResult, ReviewDecision, IssueSeverity
+    AgentCapability,
+    ImplementationContext,
+    ImplementationResult,
+    IssueSeverity,
+    ReviewContext,
+    ReviewDecision,
+    ValidationContext,
+    ValidationResult,
+    WorkflowContext,
 )
-from devflow.adapters.base import Issue, PullRequest, IssueState, PullRequestState
+from devflow.agents.claude import ClaudeAgentProvider
 from devflow.exceptions import AgentError
 
 
-@pytest.mark.skip(reason="Temporarily skipping due to mocking/confidence calculation issues - needs test updates")
+@pytest.mark.skip(
+    reason="Temporarily skipping due to mocking/confidence calculation issues - needs test updates"
+)
 class TestClaudeAgentProvider:
     """Test ClaudeAgentProvider functionality."""
 
@@ -25,7 +34,7 @@ class TestClaudeAgentProvider:
             "model": "claude-3.5-sonnet",
             "api_key": "test-api-key",
             "use_claude_cli": False,  # Disable CLI mode for testing
-            "project_context": {"test": True}
+            "project_context": {"test": True},
         }
 
     @pytest.fixture
@@ -48,7 +57,7 @@ class TestClaudeAgentProvider:
             created_at=datetime.now(),
             updated_at=datetime.now(),
             url="https://github.com/test/repo/issues/123",
-            platform_data={"test": True}
+            platform_data={"test": True},
         )
 
     @pytest.fixture
@@ -69,7 +78,7 @@ class TestClaudeAgentProvider:
             updated_at=datetime.now(),
             mergeable=True,
             url="https://github.com/test/repo/pull/456",
-            platform_data={"test": True}
+            platform_data={"test": True},
         )
 
     def test_agent_initialization(self, agent):
@@ -85,7 +94,7 @@ class TestClaudeAgentProvider:
             AgentCapability.VALIDATION,
             AgentCapability.IMPLEMENTATION,
             AgentCapability.REVIEW,
-            AgentCapability.ANALYSIS
+            AgentCapability.ANALYSIS,
         ]
         assert capabilities == expected_capabilities
 
@@ -99,19 +108,16 @@ class TestClaudeAgentProvider:
         """Test context size property."""
         assert agent.max_context_size == 200000
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_validate_connection_success(self, mock_run, agent):
         """Test successful connection validation."""
         # Mock successful Claude Code call
-        mock_run.return_value = Mock(
-            returncode=0,
-            stdout="Claude Code is working properly"
-        )
+        mock_run.return_value = Mock(returncode=0, stdout="Claude Code is working properly")
 
         result = agent.validate_connection()
         assert result is True
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_validate_connection_failure(self, mock_run, agent):
         """Test failed connection validation."""
         # Mock failed Claude Code call
@@ -121,47 +127,45 @@ class TestClaudeAgentProvider:
         # API mode returns True with warning, not False
         assert result is True
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_validate_issue_success(self, mock_run, agent, mock_issue):
         """Test successful issue validation."""
-        mock_response = '''
+        mock_response = """
         Analysis: This issue provides clear requirements and appears valid.
 
         Complexity: MEDIUM
         Confidence: 0.85
         Result: VALID
         Labels: automated, validated
-        '''
+        """
         mock_run.return_value = Mock(returncode=0, stdout=mock_response)
 
         context = ValidationContext(
             issue=mock_issue,
             project_context={"maturity_level": "early_stage"},
             maturity_level="early_stage",
-            previous_attempts=[]
+            previous_attempts=[],
         )
 
         response = agent.validate_issue(context)
 
         assert response.success is True
 
-    @patch('devflow.agents.claude.ClaudeAgentProvider._call_claude_code')
+    @patch("devflow.agents.claude.ClaudeAgentProvider._call_claude_code")
     def test_validate_issue_invalid(self, mock_call, agent, mock_issue):
         """Test issue validation with invalid result."""
-        mock_response = '''
+        mock_response = """
         Analysis: This issue lacks sufficient detail for implementation.
 
         Complexity: UNKNOWN
         Confidence: 0.9
         Result: INVALID
         Labels: needs-more-info
-        '''
+        """
         mock_call.return_value = mock_response
 
         context = ValidationContext(
-            issue=mock_issue,
-            project_context={},
-            maturity_level="early_stage"
+            issue=mock_issue, project_context={}, maturity_level="early_stage"
         )
 
         response = agent.validate_issue(context)
@@ -171,17 +175,17 @@ class TestClaudeAgentProvider:
         assert response.confidence == 0.9
         assert "needs-more-info" in response.suggested_labels
 
-    @patch('devflow.agents.claude.ClaudeAgentProvider._call_claude_code')
+    @patch("devflow.agents.claude.ClaudeAgentProvider._call_claude_code")
     def test_implement_changes_success(self, mock_call, agent, mock_issue):
         """Test successful implementation."""
-        mock_response = '''
+        mock_response = """
         Implementation completed successfully.
 
         Files changed: src/feature.py, tests/test_feature.py
         Tests added: true
         Confidence: 0.9
         Result: SUCCESS
-        '''
+        """
         mock_call.return_value = mock_response
 
         context = ImplementationContext(
@@ -190,7 +194,7 @@ class TestClaudeAgentProvider:
             project_context={"maturity_level": "early_stage"},
             validation_result={},
             previous_iterations=[],
-            constraints={"max_iterations": 3, "current_iteration": 1}
+            constraints={"max_iterations": 3, "current_iteration": 1},
         )
 
         response = agent.implement_changes(context)
@@ -202,10 +206,10 @@ class TestClaudeAgentProvider:
         assert "tests/test_feature.py" in response.files_changed
         assert response.tests_added is True
 
-    @patch('devflow.agents.claude.ClaudeAgentProvider._call_claude_code')
+    @patch("devflow.agents.claude.ClaudeAgentProvider._call_claude_code")
     def test_implement_changes_failure(self, mock_call, agent, mock_issue):
         """Test failed implementation."""
-        mock_response = '''
+        mock_response = """
         Implementation failed due to compilation errors.
 
         Files changed:
@@ -213,7 +217,7 @@ class TestClaudeAgentProvider:
         Confidence: 0.1
         Result: FAILED
         Error: Syntax errors in generated code
-        '''
+        """
         mock_call.return_value = mock_response
 
         context = ImplementationContext(
@@ -221,7 +225,7 @@ class TestClaudeAgentProvider:
             working_directory="/tmp/test",
             project_context={},
             validation_result={},
-            previous_iterations=[]
+            previous_iterations=[],
         )
 
         response = agent.implement_changes(context)
@@ -231,22 +235,22 @@ class TestClaudeAgentProvider:
         assert response.confidence == 0.1
         assert "Syntax errors" in response.message
 
-    @patch('devflow.agents.claude.ClaudeAgentProvider._call_claude_code')
+    @patch("devflow.agents.claude.ClaudeAgentProvider._call_claude_code")
     def test_review_code_approve(self, mock_call, agent, mock_pr):
         """Test code review with approval."""
-        mock_response = '''
+        mock_response = """
         Code review completed. The changes look good and follow best practices.
 
         Decision: APPROVE
         Severity: INFO
         Confidence: 0.8
         Issues: None identified
-        '''
+        """
         mock_call.return_value = mock_response
 
         changed_files = [
             {"filename": "src/test.py", "status": "modified"},
-            {"filename": "tests/test_test.py", "status": "added"}
+            {"filename": "tests/test_test.py", "status": "added"},
         ]
 
         context = ReviewContext(
@@ -254,7 +258,7 @@ class TestClaudeAgentProvider:
             changed_files=changed_files,
             project_context={"maturity_level": "early_stage"},
             maturity_level="early_stage",
-            review_focus=["correctness", "maintainability"]
+            review_focus=["correctness", "maintainability"],
         )
 
         response = agent.review_code(context)
@@ -264,28 +268,26 @@ class TestClaudeAgentProvider:
         assert response.severity == IssueSeverity.INFO
         assert response.confidence == 0.8
 
-    @patch('devflow.agents.claude.ClaudeAgentProvider._call_claude_code')
+    @patch("devflow.agents.claude.ClaudeAgentProvider._call_claude_code")
     def test_review_code_request_changes(self, mock_call, agent, mock_pr):
         """Test code review requesting changes."""
-        mock_response = '''
+        mock_response = """
         Code review found several issues that need to be addressed.
 
         Decision: REQUEST_CHANGES
         Severity: MEDIUM
         Confidence: 0.9
         Issues: Missing error handling, insufficient test coverage
-        '''
+        """
         mock_call.return_value = mock_response
 
-        changed_files = [
-            {"filename": "src/complex.py", "status": "modified"}
-        ]
+        changed_files = [{"filename": "src/complex.py", "status": "modified"}]
 
         context = ReviewContext(
             pull_request=mock_pr,
             changed_files=changed_files,
             project_context={},
-            maturity_level="stable"
+            maturity_level="stable",
         )
 
         response = agent.review_code(context)
@@ -296,10 +298,10 @@ class TestClaudeAgentProvider:
         assert response.confidence == 0.9
         assert "Missing error handling" in response.message
 
-    @patch('devflow.agents.claude.ClaudeAgentProvider._call_claude_code')
+    @patch("devflow.agents.claude.ClaudeAgentProvider._call_claude_code")
     def test_analyze_codebase(self, mock_call, agent):
         """Test codebase analysis."""
-        mock_response = '''
+        mock_response = """
         {
           "analysis_type": "codebase",
           "project_name": "test-project",
@@ -314,14 +316,14 @@ class TestClaudeAgentProvider:
             "Consider refactoring large functions"
           ]
         }
-        '''
+        """
         mock_call.return_value = mock_response
 
         context = WorkflowContext(
             project_name="test-project",
             repository_url="https://github.com/test/repo",
             base_branch="main",
-            working_directory="/tmp/test"
+            working_directory="/tmp/test",
         )
 
         result = agent.analyze_codebase(context)
@@ -331,10 +333,10 @@ class TestClaudeAgentProvider:
         assert "recommendations" in result
         assert "metrics" in result
 
-    @patch('devflow.agents.claude.ClaudeAgentProvider._call_claude_code')
+    @patch("devflow.agents.claude.ClaudeAgentProvider._call_claude_code")
     def test_generate_documentation(self, mock_call, agent):
         """Test documentation generation."""
-        mock_response = '''
+        mock_response = """
         {
           "documentation_type": "project",
           "project_name": "test-project",
@@ -345,14 +347,14 @@ class TestClaudeAgentProvider:
             "usage": "Usage examples"
           }
         }
-        '''
+        """
         mock_call.return_value = mock_response
 
         context = WorkflowContext(
             project_name="test-project",
             repository_url="https://github.com/test/repo",
             base_branch="main",
-            working_directory="/tmp/test"
+            working_directory="/tmp/test",
         )
 
         result = agent.generate_documentation(context)
@@ -361,47 +363,37 @@ class TestClaudeAgentProvider:
         assert result["project_name"] == "test-project"
         assert "README.md" in result["files_generated"]
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_call_claude_code_success(self, mock_run, agent):
         """Test successful Claude Code call."""
         expected_response = "Analysis completed successfully"
-        mock_run.return_value = Mock(
-            returncode=0,
-            stdout=expected_response
-        )
+        mock_run.return_value = Mock(returncode=0, stdout=expected_response)
 
         response = agent._call_claude_code("Test prompt")
 
         assert response == expected_response
         mock_run.assert_called_once_with(
-            ["claude-code", "--prompt", "Test prompt"],
-            capture_output=True,
-            text=True,
-            check=False
+            ["claude-code", "--prompt", "Test prompt"], capture_output=True, text=True, check=False
         )
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_call_claude_code_failure(self, mock_run, agent):
         """Test failed Claude Code call."""
-        mock_run.return_value = Mock(
-            returncode=1,
-            stderr="Command failed",
-            stdout=""
-        )
+        mock_run.return_value = Mock(returncode=1, stderr="Command failed", stdout="")
 
         with pytest.raises(AgentError, match="Claude Code command failed"):
             agent._call_claude_code("Test prompt")
 
     def test_parse_validation_response(self, agent):
         """Test parsing validation response."""
-        response_text = '''
+        response_text = """
         Analysis: Issue is well-defined.
 
         Complexity: SIMPLE
         Confidence: 0.9
         Result: VALID
         Labels: feature, automated
-        '''
+        """
 
         result, confidence, complexity, labels = agent._parse_validation_response(response_text)
 
@@ -412,14 +404,14 @@ class TestClaudeAgentProvider:
 
     def test_parse_implementation_response(self, agent):
         """Test parsing implementation response."""
-        response_text = '''
+        response_text = """
         Implementation successful.
 
         Files changed: src/main.py, src/utils.py, tests/test_main.py
         Tests added: true
         Confidence: 0.85
         Result: SUCCESS
-        '''
+        """
 
         result, confidence, files, tests_added = agent._parse_implementation_response(response_text)
 
@@ -430,13 +422,13 @@ class TestClaudeAgentProvider:
 
     def test_parse_review_response(self, agent):
         """Test parsing review response."""
-        response_text = '''
+        response_text = """
         Review completed with minor suggestions.
 
         Decision: APPROVE
         Severity: LOW
         Confidence: 0.75
-        '''
+        """
 
         decision, severity, confidence = agent._parse_review_response(response_text)
 
@@ -451,16 +443,14 @@ class TestClaudeAgentProvider:
 
         assert agent.model == "claude-3-opus"
 
-    @patch('devflow.agents.claude.ClaudeAgentProvider._call_claude_code')
+    @patch("devflow.agents.claude.ClaudeAgentProvider._call_claude_code")
     def test_agent_error_handling(self, mock_call, agent, mock_issue):
         """Test agent error handling."""
         # Mock Claude Code call failure
         mock_call.side_effect = AgentError("Connection failed")
 
         context = ValidationContext(
-            issue=mock_issue,
-            project_context={},
-            maturity_level="early_stage"
+            issue=mock_issue, project_context={}, maturity_level="early_stage"
         )
 
         response = agent.validate_issue(context)

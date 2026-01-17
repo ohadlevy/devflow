@@ -20,7 +20,7 @@ from devflow.adapters.base import (
     Repository,
     Review,
     ReviewDecision,
-    WorkflowRun
+    WorkflowRun,
 )
 from devflow.exceptions import PlatformError
 
@@ -63,8 +63,7 @@ class BasicGitAdapter(PlatformAdapter):
         """Validate configuration."""
         if not self.project_root.exists():
             raise PlatformError(
-                f"Project root does not exist: {self.project_root}",
-                platform=self.name
+                f"Project root does not exist: {self.project_root}", platform=self.name
             )
 
     def validate_connection(self) -> bool:
@@ -79,10 +78,7 @@ class BasicGitAdapter(PlatformAdapter):
         try:
             # Check if git is available
             result = subprocess.run(
-                ["git", "--version"],
-                capture_output=True,
-                text=True,
-                timeout=10
+                ["git", "--version"], capture_output=True, text=True, timeout=10
             )
             if result.returncode != 0:
                 raise PlatformError("Git not available", platform=self.name)
@@ -93,7 +89,7 @@ class BasicGitAdapter(PlatformAdapter):
                 cwd=self.project_root,
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
 
             return result.returncode == 0
@@ -115,7 +111,7 @@ class BasicGitAdapter(PlatformAdapter):
             url=f"https://github.com/{owner}/{repo}",
             clone_url=f"https://github.com/{owner}/{repo}.git",
             ssh_url=f"git@github.com:{owner}/{repo}.git",
-            platform_data={"mock": True}
+            platform_data={"mock": True},
         )
 
     # Issue operations (mock implementations)
@@ -133,7 +129,7 @@ class BasicGitAdapter(PlatformAdapter):
             created_at=datetime.now(),
             updated_at=datetime.now(),
             url=f"https://github.com/{owner}/{repo}/issues/{issue_number}",
-            platform_data={"mock": True, "issue_number": issue_number}
+            platform_data={"mock": True, "issue_number": issue_number},
         )
 
     def list_issues(
@@ -142,14 +138,11 @@ class BasicGitAdapter(PlatformAdapter):
         repo: str,
         state: IssueState = IssueState.OPEN,
         labels: Optional[List[str]] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Issue]:
         """List repository issues (mock)."""
         # Return a few mock issues
-        return [
-            self.get_issue(owner, repo, i)
-            for i in range(1, min(4, limit + 1))
-        ]
+        return [self.get_issue(owner, repo, i) for i in range(1, min(4, limit + 1))]
 
     def create_issue(
         self,
@@ -158,7 +151,7 @@ class BasicGitAdapter(PlatformAdapter):
         title: str,
         body: str,
         labels: Optional[List[str]] = None,
-        assignees: Optional[List[str]] = None
+        assignees: Optional[List[str]] = None,
     ) -> Issue:
         """Create a new issue (mock)."""
         issue_number = 999  # Mock issue number
@@ -174,7 +167,7 @@ class BasicGitAdapter(PlatformAdapter):
             created_at=datetime.now(),
             updated_at=datetime.now(),
             url=f"https://github.com/{owner}/{repo}/issues/{issue_number}",
-            platform_data={"mock": True, "created": True}
+            platform_data={"mock": True, "created": True},
         )
 
     def update_issue(
@@ -186,7 +179,7 @@ class BasicGitAdapter(PlatformAdapter):
         body: Optional[str] = None,
         state: Optional[IssueState] = None,
         labels: Optional[List[str]] = None,
-        assignees: Optional[List[str]] = None
+        assignees: Optional[List[str]] = None,
     ) -> Issue:
         """Update an existing issue (mock)."""
         # Return updated mock issue
@@ -205,17 +198,13 @@ class BasicGitAdapter(PlatformAdapter):
         return issue
 
     def add_issue_comment(
-        self,
-        owner: str,
-        repo: str,
-        issue_number: int,
-        body: str
+        self, owner: str, repo: str, issue_number: int, body: str
     ) -> Dict[str, Any]:
         """Add a comment to an issue (mock)."""
         return {
             "url": f"https://github.com/{owner}/{repo}/issues/{issue_number}#comment-mock",
             "body": body,
-            "mock": True
+            "mock": True,
         }
 
     # Pull request operations (mock implementations)
@@ -236,7 +225,7 @@ class BasicGitAdapter(PlatformAdapter):
             updated_at=datetime.now(),
             mergeable=True,
             url=f"https://github.com/{owner}/{repo}/pull/{pr_number}",
-            platform_data={"mock": True}
+            platform_data={"mock": True},
         )
 
     def list_pull_requests(
@@ -244,13 +233,10 @@ class BasicGitAdapter(PlatformAdapter):
         owner: str,
         repo: str,
         state: PullRequestState = PullRequestState.OPEN,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[PullRequest]:
         """List repository pull requests (mock)."""
-        return [
-            self.get_pull_request(owner, repo, i)
-            for i in range(1, min(3, limit + 1))
-        ]
+        return [self.get_pull_request(owner, repo, i) for i in range(1, min(3, limit + 1))]
 
     def create_pull_request(
         self,
@@ -260,7 +246,7 @@ class BasicGitAdapter(PlatformAdapter):
         body: str,
         source_branch: str,
         target_branch: str,
-        draft: bool = False
+        draft: bool = False,
     ) -> PullRequest:
         """Create a new pull request (mock)."""
         pr_number = 888  # Mock PR number
@@ -279,7 +265,7 @@ class BasicGitAdapter(PlatformAdapter):
             updated_at=datetime.now(),
             mergeable=True,
             url=f"https://github.com/{owner}/{repo}/pull/{pr_number}",
-            platform_data={"mock": True, "draft": draft}
+            platform_data={"mock": True, "draft": draft},
         )
 
     def update_pull_request(
@@ -289,7 +275,7 @@ class BasicGitAdapter(PlatformAdapter):
         pr_number: int,
         title: Optional[str] = None,
         body: Optional[str] = None,
-        state: Optional[PullRequestState] = None
+        state: Optional[PullRequestState] = None,
     ) -> PullRequest:
         """Update an existing pull request (mock)."""
         pr = self.get_pull_request(owner, repo, pr_number)
@@ -309,23 +295,18 @@ class BasicGitAdapter(PlatformAdapter):
         pr_number: int,
         merge_strategy: MergeStrategy = MergeStrategy.SQUASH,
         commit_title: Optional[str] = None,
-        commit_message: Optional[str] = None
+        commit_message: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Merge a pull request (mock)."""
         return {
             "merged": True,
             "strategy": merge_strategy.value,
             "commit_sha": "mock-commit-sha-123",
-            "mock": True
+            "mock": True,
         }
 
     # Review operations (mock implementations)
-    def list_pull_request_reviews(
-        self,
-        owner: str,
-        repo: str,
-        pr_number: int
-    ) -> List[Review]:
+    def list_pull_request_reviews(self, owner: str, repo: str, pr_number: int) -> List[Review]:
         """List pull request reviews (mock)."""
         return []  # No reviews in mock mode
 
@@ -336,17 +317,12 @@ class BasicGitAdapter(PlatformAdapter):
         pr_number: int,
         body: str,
         decision: ReviewDecision,
-        comments: Optional[List[Dict[str, Any]]] = None
+        comments: Optional[List[Dict[str, Any]]] = None,
     ) -> Review:
         """Create a pull request review (mock)."""
         raise NotImplementedError("Mock review creation not implemented")
 
-    def get_pull_request_files(
-        self,
-        owner: str,
-        repo: str,
-        pr_number: int
-    ) -> List[Dict[str, Any]]:
+    def get_pull_request_files(self, owner: str, repo: str, pr_number: int) -> List[Dict[str, Any]]:
         """Get files changed in a pull request (mock)."""
         return [
             {
@@ -354,54 +330,37 @@ class BasicGitAdapter(PlatformAdapter):
                 "status": "modified",
                 "changes": 10,
                 "additions": 8,
-                "deletions": 2
+                "deletions": 2,
             },
             {
                 "filename": "tests/test_example.py",
                 "status": "added",
                 "changes": 20,
                 "additions": 20,
-                "deletions": 0
-            }
+                "deletions": 0,
+            },
         ]
 
     # CI/CD operations (mock)
     def list_workflow_runs(
-        self,
-        owner: str,
-        repo: str,
-        branch: Optional[str] = None,
-        limit: int = 100
+        self, owner: str, repo: str, branch: Optional[str] = None, limit: int = 100
     ) -> List[WorkflowRun]:
         """List workflow runs for repository (mock)."""
         return []
 
-    def get_workflow_run(
-        self,
-        owner: str,
-        repo: str,
-        run_id: str
-    ) -> WorkflowRun:
+    def get_workflow_run(self, owner: str, repo: str, run_id: str) -> WorkflowRun:
         """Get details of a specific workflow run (mock)."""
         raise NotImplementedError("Mock workflow run details not implemented")
 
     # Label operations (mock)
     def add_labels_to_issue(
-        self,
-        owner: str,
-        repo: str,
-        issue_number: int,
-        labels: List[str]
+        self, owner: str, repo: str, issue_number: int, labels: List[str]
     ) -> None:
         """Add labels to an issue (mock)."""
         pass  # Mock operation - no actual changes
 
     def remove_labels_from_issue(
-        self,
-        owner: str,
-        repo: str,
-        issue_number: int,
-        labels: List[str]
+        self, owner: str, repo: str, issue_number: int, labels: List[str]
     ) -> None:
         """Remove labels from an issue (mock)."""
         pass  # Mock operation - no actual changes

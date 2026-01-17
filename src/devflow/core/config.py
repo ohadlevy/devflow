@@ -13,8 +13,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import yaml
-from pydantic import BaseModel, Field, validator
 from platformdirs import user_config_dir
+from pydantic import BaseModel, Field, validator
 
 from devflow.exceptions import ConfigurationError, ValidationError
 
@@ -79,7 +79,7 @@ class MaturityConfig:
             allow_breaking_changes=True,
             require_changelog=False,
             require_migration_guide=False,
-            description="Fast iteration, basic quality checks, proof of concepts"
+            description="Fast iteration, basic quality checks, proof of concepts",
         ),
         ProjectMaturity.EARLY_STAGE: MaturityPreset(
             min_coverage=40,
@@ -89,7 +89,7 @@ class MaturityConfig:
             allow_breaking_changes=True,
             require_changelog=True,
             require_migration_guide=False,
-            description="Growing codebase, establishing patterns, small teams"
+            description="Growing codebase, establishing patterns, small teams",
         ),
         ProjectMaturity.STABLE: MaturityPreset(
             min_coverage=70,
@@ -99,7 +99,7 @@ class MaturityConfig:
             allow_breaking_changes=True,
             require_changelog=True,
             require_migration_guide=True,
-            description="Production ready, careful evolution, breaking changes with notice"
+            description="Production ready, careful evolution, breaking changes with notice",
         ),
         ProjectMaturity.MATURE: MaturityPreset(
             min_coverage=85,
@@ -109,7 +109,7 @@ class MaturityConfig:
             allow_breaking_changes=False,
             require_changelog=True,
             require_migration_guide=True,
-            description="Stable API, wide adoption, strict backward compatibility"
+            description="Stable API, wide adoption, strict backward compatibility",
         ),
     }
 
@@ -132,8 +132,7 @@ class MaturityConfig:
             except ValueError:
                 valid_levels = ", ".join(ProjectMaturity.get_all_levels())
                 raise ValidationError(
-                    f"Invalid maturity level: {maturity}. "
-                    f"Valid levels: {valid_levels}"
+                    f"Invalid maturity level: {maturity}. " f"Valid levels: {valid_levels}"
                 )
 
         if maturity not in cls.PRESETS:
@@ -170,7 +169,7 @@ class PlatformConfig(BaseModel):
     issue_tracking: Optional[str] = Field(None, description="Issue tracking platform")
     git_provider: Optional[str] = Field(None, description="Git hosting provider")
 
-    @validator('primary')
+    @validator("primary")
     def validate_primary_platform(cls, v):
         """Validate primary platform."""
         supported_platforms = ["github", "gitlab", "bitbucket"]
@@ -191,12 +190,14 @@ class AgentConfig(BaseModel):
     """AI agent configuration settings."""
 
     primary: str = Field(default="claude", description="Primary AI agent provider")
-    review_sources: List[str] = Field(default_factory=lambda: ["claude"], description="Review agent sources")
+    review_sources: List[str] = Field(
+        default_factory=lambda: ["claude"], description="Review agent sources"
+    )
     timeout: int = Field(default=600, ge=30, le=3600, description="Agent timeout in seconds")
     max_iterations: int = Field(default=3, ge=1, le=10, description="Maximum agent iterations")
     claude_model: str = Field(default="claude-3.5-sonnet", description="Claude model to use")
 
-    @validator('review_sources')
+    @validator("review_sources")
     def validate_review_sources(cls, v):
         """Validate review sources."""
         if not v:
@@ -213,15 +214,25 @@ class WorkflowConfig(BaseModel):
 
     validation_enabled: bool = Field(default=True, description="Enable issue validation")
     validation_timeout: int = Field(default=180, ge=30, le=600, description="Validation timeout")
-    validation_requires_approval: bool = Field(default=True, description="Require human approval after validation")
-    implementation_max_iterations: int = Field(default=3, ge=1, le=10, description="Max implementation iterations")
+    validation_requires_approval: bool = Field(
+        default=True, description="Require human approval after validation"
+    )
+    implementation_max_iterations: int = Field(
+        default=3, ge=1, le=10, description="Max implementation iterations"
+    )
     commit_strategy: str = Field(default="squash", description="Git commit strategy")
-    context_preservation: bool = Field(default=True, description="Preserve context between iterations")
+    context_preservation: bool = Field(
+        default=True, description="Preserve context between iterations"
+    )
     multi_source_review: bool = Field(default=True, description="Enable multi-source code review")
-    human_override_detection: bool = Field(default=True, description="Detect human reviewer interventions")
-    followup_issue_creation: bool = Field(default=True, description="Create follow-up issues for tech debt")
+    human_override_detection: bool = Field(
+        default=True, description="Detect human reviewer interventions"
+    )
+    followup_issue_creation: bool = Field(
+        default=True, description="Create follow-up issues for tech debt"
+    )
 
-    @validator('commit_strategy')
+    @validator("commit_strategy")
     def validate_commit_strategy(cls, v):
         """Validate commit strategy."""
         valid_strategies = ["squash", "rebase", "merge"]
@@ -243,8 +254,7 @@ class ProjectConfig(BaseModel):
 
     # Maturity-based configuration
     maturity_level: ProjectMaturity = Field(
-        default=ProjectMaturity.EARLY_STAGE,
-        description="Project maturity level"
+        default=ProjectMaturity.EARLY_STAGE, description="Project maturity level"
     )
 
     # Platform configuration
@@ -254,7 +264,9 @@ class ProjectConfig(BaseModel):
     agents: AgentConfig = Field(default_factory=AgentConfig, description="AI agent configuration")
 
     # Workflow configuration
-    workflows: WorkflowConfig = Field(default_factory=WorkflowConfig, description="Workflow configuration")
+    workflows: WorkflowConfig = Field(
+        default_factory=WorkflowConfig, description="Workflow configuration"
+    )
 
     # Repository information (auto-detected)
     repo_owner: Optional[str] = Field(None, description="Repository owner")
@@ -262,12 +274,15 @@ class ProjectConfig(BaseModel):
     base_branch: str = Field(default="main", description="Base branch name")
 
     # Advanced settings
-    max_concurrent_workflows: int = Field(default=3, ge=1, le=10, description="Max concurrent workflows")
+    max_concurrent_workflows: int = Field(
+        default=3, ge=1, le=10, description="Max concurrent workflows"
+    )
     state_file_path: Optional[Path] = Field(None, description="Custom state file path")
     log_level: str = Field(default="INFO", description="Logging level")
 
     class Config:
         """Pydantic configuration."""
+
         use_enum_values = True
         validate_assignment = True
         extra = "forbid"
@@ -287,7 +302,7 @@ class ProjectConfig(BaseModel):
     @property
     def maturity_preset(self) -> MaturityPreset:
         """Get the current maturity preset."""
-        return getattr(self, '_maturity_preset', MaturityConfig.get_preset(self.maturity_level))
+        return getattr(self, "_maturity_preset", MaturityConfig.get_preset(self.maturity_level))
 
     @classmethod
     def from_file(cls, config_path: Union[str, Path]) -> "ProjectConfig":
@@ -306,18 +321,16 @@ class ProjectConfig(BaseModel):
 
         if not config_path.exists():
             raise ConfigurationError(
-                f"Configuration file not found: {config_path}",
-                config_path=str(config_path)
+                f"Configuration file not found: {config_path}", config_path=str(config_path)
             )
 
         try:
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 data = yaml.safe_load(f)
 
             if not data:
                 raise ConfigurationError(
-                    f"Configuration file is empty: {config_path}",
-                    config_path=str(config_path)
+                    f"Configuration file is empty: {config_path}", config_path=str(config_path)
                 )
 
             # Set project_root if not specified
@@ -328,13 +341,11 @@ class ProjectConfig(BaseModel):
 
         except yaml.YAMLError as e:
             raise ConfigurationError(
-                f"Invalid YAML syntax in configuration file: {e}",
-                config_path=str(config_path)
+                f"Invalid YAML syntax in configuration file: {e}", config_path=str(config_path)
             ) from e
         except Exception as e:
             raise ConfigurationError(
-                f"Failed to load configuration: {e}",
-                config_path=str(config_path)
+                f"Failed to load configuration: {e}", config_path=str(config_path)
             ) from e
 
     @classmethod
@@ -421,7 +432,7 @@ class ProjectConfig(BaseModel):
                 cwd=project_root,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
             remote_url = result.stdout.strip()
 
@@ -466,13 +477,12 @@ class ProjectConfig(BaseModel):
             if "state_file_path" in data and data["state_file_path"]:
                 data["state_file_path"] = str(data["state_file_path"])
 
-            with open(config_path, 'w') as f:
+            with open(config_path, "w") as f:
                 yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
 
         except Exception as e:
             raise ConfigurationError(
-                f"Failed to save configuration: {e}",
-                config_path=str(config_path)
+                f"Failed to save configuration: {e}", config_path=str(config_path)
             ) from e
 
     def validate_complete(self) -> List[str]:
@@ -514,9 +524,12 @@ class ProjectConfig(BaseModel):
         return {
             # Project settings
             "project_name": self.project_name,
-            "maturity_level": self.maturity_level.value if hasattr(self.maturity_level, 'value') else str(self.maturity_level),
+            "maturity_level": (
+                self.maturity_level.value
+                if hasattr(self.maturity_level, "value")
+                else str(self.maturity_level)
+            ),
             "project_root": str(self.project_root) if self.project_root else None,
-
             # Maturity-based settings
             "min_coverage": preset.min_coverage,
             "coverage_goal": preset.coverage_goal,
@@ -525,16 +538,12 @@ class ProjectConfig(BaseModel):
             "allow_breaking_changes": preset.allow_breaking_changes,
             "require_changelog": preset.require_changelog,
             "require_migration_guide": preset.require_migration_guide,
-
             # Platform settings
             "platforms": self.platforms.dict(),
-
             # Agent settings
             "agents": self.agents.dict(),
-
             # Workflow settings
             "workflows": self.workflows.dict(),
-
             # Repository settings
             "repo_owner": self.repo_owner,
             "repo_name": self.repo_name,
@@ -563,9 +572,7 @@ def load_config(config_path: Optional[Union[str, Path]] = None) -> ProjectConfig
         return config
 
     # No configuration found
-    raise ConfigurationError(
-        "No DevFlow configuration found. Run 'devflow init' to create one."
-    )
+    raise ConfigurationError("No DevFlow configuration found. Run 'devflow init' to create one.")
 
 
 def get_user_config_dir() -> Path:

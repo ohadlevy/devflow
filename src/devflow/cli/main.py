@@ -17,11 +17,12 @@ from rich.table import Table
 from rich.text import Text
 
 from devflow import __version__
-from devflow.core.config import ProjectConfig, load_config, MaturityConfig
-from devflow.exceptions import DevFlowError, ConfigurationError, ValidationError
+from devflow.core.config import MaturityConfig, ProjectConfig, load_config
+from devflow.exceptions import ConfigurationError, DevFlowError, ValidationError
 
 # Rich console for beautiful output
 console = Console()
+
 
 # Configure logging with Rich
 def setup_logging(level: str = "INFO") -> None:
@@ -34,7 +35,7 @@ def setup_logging(level: str = "INFO") -> None:
         level=getattr(logging, level.upper()),
         format="%(message)s",
         datefmt="[%X]",
-        handlers=[RichHandler(console=console, rich_tracebacks=True)]
+        handlers=[RichHandler(console=console, rich_tracebacks=True)],
     )
 
 
@@ -53,7 +54,7 @@ def handle_error(error: Exception, show_traceback: bool = False) -> None:
             for key, value in error.context.items():
                 console.print(f"  {key}: {value}")
 
-        if hasattr(error, 'suggestions') and error.suggestions:
+        if hasattr(error, "suggestions") and error.suggestions:
             console.print("\n[blue]Suggestions:[/blue]")
             for suggestion in error.suggestions:
                 console.print(f"  • {suggestion}")
@@ -87,7 +88,9 @@ def require_project_context() -> ProjectConfig:
     """
     config = validate_project_context()
     if not config:
-        console.print("\n[red]Error:[/red] No DevFlow project found in current directory or parents.")
+        console.print(
+            "\n[red]Error:[/red] No DevFlow project found in current directory or parents."
+        )
         console.print("\n[blue]To initialize a new project:[/blue]")
         console.print("  devflow init")
         console.print("\n[blue]To specify a config file:[/blue]")
@@ -106,30 +109,24 @@ class DevFlowGroup(click.Group):
         try:
             return super().invoke(ctx)
         except DevFlowError as e:
-            handle_error(e, ctx.obj.get('debug', False) if ctx.obj else False)
+            handle_error(e, ctx.obj.get("debug", False) if ctx.obj else False)
             sys.exit(1)
         except Exception as e:
-            handle_error(e, ctx.obj.get('debug', False) if ctx.obj else False)
+            handle_error(e, ctx.obj.get("debug", False) if ctx.obj else False)
             sys.exit(1)
 
 
 @click.group(cls=DevFlowGroup)
 @click.option(
-    '--config-file',
-    type=click.Path(exists=True, path_type=Path),
-    help='Path to configuration file'
+    "--config-file", type=click.Path(exists=True, path_type=Path), help="Path to configuration file"
 )
 @click.option(
-    '--log-level',
-    type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR'], case_sensitive=False),
-    default='INFO',
-    help='Set logging level'
+    "--log-level",
+    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False),
+    default="INFO",
+    help="Set logging level",
 )
-@click.option(
-    '--debug',
-    is_flag=True,
-    help='Enable debug mode with full tracebacks'
-)
+@click.option("--debug", is_flag=True, help="Enable debug mode with full tracebacks")
 @click.version_option(version=__version__)
 @click.pass_context
 def cli(ctx: click.Context, config_file: Optional[Path], log_level: str, debug: bool) -> None:
@@ -142,51 +139,42 @@ def cli(ctx: click.Context, config_file: Optional[Path], log_level: str, debug: 
     ctx.ensure_object(dict)
 
     # Store global options
-    ctx.obj['config_file'] = config_file
-    ctx.obj['log_level'] = log_level
-    ctx.obj['debug'] = debug
+    ctx.obj["config_file"] = config_file
+    ctx.obj["log_level"] = log_level
+    ctx.obj["debug"] = debug
 
     # Setup logging
     setup_logging(log_level)
 
     # Display welcome message for main command
     if ctx.invoked_subcommand is None:
-        console.print(Panel.fit(
-            f"[bold blue]DevFlow v{__version__}[/bold blue]\n"
-            "Intelligent Developer Workflow Automation",
-            title="Welcome to DevFlow"
-        ))
+        console.print(
+            Panel.fit(
+                f"[bold blue]DevFlow v{__version__}[/bold blue]\n"
+                "Intelligent Developer Workflow Automation",
+                title="Welcome to DevFlow",
+            )
+        )
 
 
 @cli.command()
+@click.option("--project-name", help="Project name (defaults to directory name)")
 @click.option(
-    '--project-name',
-    help='Project name (defaults to directory name)'
+    "--maturity-level",
+    type=click.Choice(["prototype", "early_stage", "stable", "mature"]),
+    default="early_stage",
+    help="Project maturity level",
 )
 @click.option(
-    '--maturity-level',
-    type=click.Choice(['prototype', 'early_stage', 'stable', 'mature']),
-    default='early_stage',
-    help='Project maturity level'
+    "--platform",
+    type=click.Choice(["github", "gitlab", "bitbucket"]),
+    default="github",
+    help="Primary platform",
 )
-@click.option(
-    '--platform',
-    type=click.Choice(['github', 'gitlab', 'bitbucket']),
-    default='github',
-    help='Primary platform'
-)
-@click.option(
-    '--force',
-    is_flag=True,
-    help='Force initialization even if config exists'
-)
+@click.option("--force", is_flag=True, help="Force initialization even if config exists")
 @click.pass_context
 def init(
-    ctx: click.Context,
-    project_name: Optional[str],
-    maturity_level: str,
-    platform: str,
-    force: bool
+    ctx: click.Context, project_name: Optional[str], maturity_level: str, platform: str, force: bool
 ) -> None:
     """Initialize a new DevFlow project.
 
@@ -203,7 +191,7 @@ def init(
             maturity_level=maturity_level,
             platform=platform,
             force=force,
-            config_file=ctx.obj.get('config_file')
+            config_file=ctx.obj.get("config_file"),
         )
 
         console.print("\n[green]✓[/green] Project initialized successfully!")
@@ -218,7 +206,7 @@ def init(
         console.print("  3. Process your first issue: devflow process --issue <number>")
 
     except Exception as e:
-        handle_error(e, ctx.obj.get('debug', False))
+        handle_error(e, ctx.obj.get("debug", False))
         raise click.ClickException("Project initialization failed")
 
 
@@ -245,13 +233,13 @@ def validate(ctx: click.Context) -> None:
         table.add_column("Details")
 
         for result in validation_results:
-            status = "[green]✓[/green]" if result['passed'] else "[red]✗[/red]"
-            table.add_row(result['component'], status, result['message'])
+            status = "[green]✓[/green]" if result["passed"] else "[red]✗[/red]"
+            table.add_row(result["component"], status, result["message"])
 
         console.print(table)
 
         # Summary
-        passed = sum(1 for r in validation_results if r['passed'])
+        passed = sum(1 for r in validation_results if r["passed"])
         total = len(validation_results)
 
         if passed == total:
@@ -262,33 +250,16 @@ def validate(ctx: click.Context) -> None:
             console.print("Please fix the issues above before proceeding.")
 
     except Exception as e:
-        handle_error(e, ctx.obj.get('debug', False))
+        handle_error(e, ctx.obj.get("debug", False))
         raise click.ClickException("Validation failed")
 
 
 @cli.command()
-@click.option(
-    '--issue',
-    type=int,
-    help='Issue number to process'
-)
-@click.option(
-    '--auto',
-    is_flag=True,
-    help='Run in fully automated mode'
-)
-@click.option(
-    '--dry-run',
-    is_flag=True,
-    help='Show what would be done without making changes'
-)
+@click.option("--issue", type=int, help="Issue number to process")
+@click.option("--auto", is_flag=True, help="Run in fully automated mode")
+@click.option("--dry-run", is_flag=True, help="Show what would be done without making changes")
 @click.pass_context
-def process(
-    ctx: click.Context,
-    issue: Optional[int],
-    auto: bool,
-    dry_run: bool
-) -> None:
+def process(ctx: click.Context, issue: Optional[int], auto: bool, dry_run: bool) -> None:
     """Process an issue through the DevFlow pipeline.
 
     This command runs the complete automation pipeline for an issue:
@@ -309,36 +280,28 @@ def process(
         console.print("[yellow]Running in dry-run mode - no changes will be made[/yellow]")
 
     try:
-        result = process_issue(
-            config=config,
-            issue_number=issue,
-            auto_mode=auto,
-            dry_run=dry_run
-        )
+        result = process_issue(config=config, issue_number=issue, auto_mode=auto, dry_run=dry_run)
 
         # Display results
-        if result['success']:
+        if result["success"]:
             console.print(f"\n[green]✓[/green] Issue #{issue} processed successfully!")
-            if result.get('pull_request'):
-                pr = result['pull_request']
+            if result.get("pull_request"):
+                pr = result["pull_request"]
                 console.print(f"  Pull Request: {pr['url']}")
                 console.print(f"  Status: {pr['status']}")
         else:
             console.print(f"\n[red]✗[/red] Issue #{issue} processing failed.")
-            if result.get('error'):
+            if result.get("error"):
                 console.print(f"  Error: {result['error']}")
 
     except Exception as e:
-        handle_error(e, ctx.obj.get('debug', False))
+        handle_error(e, ctx.obj.get("debug", False))
         raise click.ClickException("Issue processing failed")
 
 
 @cli.command()
 @click.option(
-    '--format',
-    type=click.Choice(['table', 'json', 'yaml']),
-    default='table',
-    help='Output format'
+    "--format", type=click.Choice(["table", "json", "yaml"]), default="table", help="Output format"
 )
 @click.pass_context
 def status(ctx: click.Context, format: str) -> None:
@@ -356,67 +319,57 @@ def status(ctx: click.Context, format: str) -> None:
     try:
         status_data = show_status(config, format)
 
-        if format == 'table':
+        if format == "table":
             # Project info
             info_table = Table(title="Project Information")
             info_table.add_column("Property", style="cyan")
             info_table.add_column("Value")
 
-            info_table.add_row("Name", status_data['project']['name'])
-            info_table.add_row("Maturity", status_data['project']['maturity_level'])
-            info_table.add_row("Platform", status_data['project']['platform'])
-            info_table.add_row("Repository", status_data['project']['repository'])
+            info_table.add_row("Name", status_data["project"]["name"])
+            info_table.add_row("Maturity", status_data["project"]["maturity_level"])
+            info_table.add_row("Platform", status_data["project"]["platform"])
+            info_table.add_row("Repository", status_data["project"]["repository"])
 
             console.print(info_table)
 
             # Active workflows
-            if status_data['workflows']:
+            if status_data["workflows"]:
                 workflow_table = Table(title="Active Workflows")
                 workflow_table.add_column("Issue", style="cyan")
                 workflow_table.add_column("Status")
                 workflow_table.add_column("Stage")
                 workflow_table.add_column("Updated")
 
-                for workflow in status_data['workflows']:
+                for workflow in status_data["workflows"]:
                     workflow_table.add_row(
                         f"#{workflow['issue_number']}",
-                        workflow['status'],
-                        workflow['stage'],
-                        workflow['updated_at']
+                        workflow["status"],
+                        workflow["stage"],
+                        workflow["updated_at"],
                     )
 
                 console.print(workflow_table)
             else:
                 console.print("\n[dim]No active workflows[/dim]")
 
-        elif format == 'json':
+        elif format == "json":
             import json
+
             console.print(json.dumps(status_data, indent=2))
-        elif format == 'yaml':
+        elif format == "yaml":
             import yaml
+
             console.print(yaml.dump(status_data, default_flow_style=False))
 
     except Exception as e:
-        handle_error(e, ctx.obj.get('debug', False))
+        handle_error(e, ctx.obj.get("debug", False))
         raise click.ClickException("Status retrieval failed")
 
 
 @cli.command()
-@click.option(
-    '--completed',
-    is_flag=True,
-    help='Clean up completed workflows'
-)
-@click.option(
-    '--force',
-    is_flag=True,
-    help='Force cleanup without confirmation'
-)
-@click.option(
-    '--dry-run',
-    is_flag=True,
-    help='Show what would be cleaned up'
-)
+@click.option("--completed", is_flag=True, help="Clean up completed workflows")
+@click.option("--force", is_flag=True, help="Force cleanup without confirmation")
+@click.option("--dry-run", is_flag=True, help="Show what would be cleaned up")
 @click.pass_context
 def cleanup(ctx: click.Context, completed: bool, force: bool, dry_run: bool) -> None:
     """Clean up DevFlow workflows and temporary files.
@@ -435,10 +388,7 @@ def cleanup(ctx: click.Context, completed: bool, force: bool, dry_run: bool) -> 
 
     try:
         result = cleanup_workflows(
-            config=config,
-            completed_only=completed,
-            force=force,
-            dry_run=dry_run
+            config=config, completed_only=completed, force=force, dry_run=dry_run
         )
 
         # Display results
@@ -448,30 +398,18 @@ def cleanup(ctx: click.Context, completed: bool, force: bool, dry_run: bool) -> 
         console.print(f"  Space freed: {result['space_freed']}")
 
     except Exception as e:
-        handle_error(e, ctx.obj.get('debug', False))
+        handle_error(e, ctx.obj.get("debug", False))
         raise click.ClickException("Cleanup failed")
 
 
 @cli.command()
-@click.argument('key')
-@click.argument('value', required=False)
-@click.option(
-    '--unset',
-    is_flag=True,
-    help='Remove the configuration key'
-)
-@click.option(
-    '--list',
-    is_flag=True,
-    help='List all configuration values'
-)
+@click.argument("key")
+@click.argument("value", required=False)
+@click.option("--unset", is_flag=True, help="Remove the configuration key")
+@click.option("--list", is_flag=True, help="List all configuration values")
 @click.pass_context
 def config(
-    ctx: click.Context,
-    key: Optional[str],
-    value: Optional[str],
-    unset: bool,
-    list: bool
+    ctx: click.Context, key: Optional[str], value: Optional[str], unset: bool, list: bool
 ) -> None:
     """Manage DevFlow configuration.
 
@@ -501,7 +439,7 @@ def config(
             console.print(table)
 
         except Exception as e:
-            handle_error(e, ctx.obj.get('debug', False))
+            handle_error(e, ctx.obj.get("debug", False))
             raise click.ClickException("Configuration retrieval failed")
 
         return
@@ -513,10 +451,7 @@ def config(
 
     try:
         result = manage_config(
-            key=key,
-            value=value,
-            unset=unset,
-            config_file=ctx.obj.get('config_file')
+            key=key, value=value, unset=unset, config_file=ctx.obj.get("config_file")
         )
 
         if unset:
@@ -527,42 +462,23 @@ def config(
             console.print(f"{key} = {result}")
 
     except Exception as e:
-        handle_error(e, ctx.obj.get('debug', False))
+        handle_error(e, ctx.obj.get("debug", False))
         raise click.ClickException("Configuration management failed")
 
 
-@cli.group(name='repo')
+@cli.group(name="repo")
 @click.pass_context
 def repo_group(ctx: click.Context) -> None:
     """Manage GitHub repositories."""
     pass
 
 
-@repo_group.command(name='create')
-@click.option(
-    '--name',
-    required=True,
-    help='Repository name'
-)
-@click.option(
-    '--owner',
-    help='Repository owner (defaults to authenticated user)'
-)
-@click.option(
-    '--description',
-    default='',
-    help='Repository description'
-)
-@click.option(
-    '--private',
-    is_flag=True,
-    help='Create as private repository'
-)
-@click.option(
-    '--no-labels',
-    is_flag=True,
-    help='Skip setting up DevFlow labels'
-)
+@repo_group.command(name="create")
+@click.option("--name", required=True, help="Repository name")
+@click.option("--owner", help="Repository owner (defaults to authenticated user)")
+@click.option("--description", default="", help="Repository description")
+@click.option("--private", is_flag=True, help="Create as private repository")
+@click.option("--no-labels", is_flag=True, help="Skip setting up DevFlow labels")
 @click.pass_context
 def repo_create(
     ctx: click.Context,
@@ -570,7 +486,7 @@ def repo_create(
     owner: Optional[str],
     description: str,
     private: bool,
-    no_labels: bool
+    no_labels: bool,
 ) -> None:
     """Create a new GitHub repository."""
     from devflow.cli.commands.repo import create_repository
@@ -581,7 +497,7 @@ def repo_create(
             owner=owner,
             description=description,
             private=private,
-            setup_labels=not no_labels
+            setup_labels=not no_labels,
         )
 
         console.print(f"\n[green]Repository created successfully![/green]")
@@ -589,23 +505,15 @@ def repo_create(
         console.print(f"SSH: {result['ssh_url']}")
 
     except Exception as e:
-        handle_error(e, ctx.obj.get('debug', False))
+        handle_error(e, ctx.obj.get("debug", False))
         raise click.ClickException("Repository creation failed")
 
 
-@repo_group.command(name='connect')
-@click.argument('repository')
-@click.option(
-    '--no-config-update',
-    is_flag=True,
-    help='Don\'t update DevFlow configuration'
-)
+@repo_group.command(name="connect")
+@click.argument("repository")
+@click.option("--no-config-update", is_flag=True, help="Don't update DevFlow configuration")
 @click.pass_context
-def repo_connect(
-    ctx: click.Context,
-    repository: str,
-    no_config_update: bool
-) -> None:
+def repo_connect(ctx: click.Context, repository: str, no_config_update: bool) -> None:
     """Connect to an existing GitHub repository.
 
     REPOSITORY should be in format: owner/repo
@@ -613,47 +521,29 @@ def repo_connect(
     from devflow.cli.commands.repo import connect_repository
 
     try:
-        if '/' not in repository:
+        if "/" not in repository:
             raise click.BadParameter("Repository must be in format: owner/repo")
 
-        owner, repo = repository.split('/', 1)
+        owner, repo = repository.split("/", 1)
 
-        result = connect_repository(
-            owner=owner,
-            repo=repo,
-            update_config=not no_config_update
-        )
+        result = connect_repository(owner=owner, repo=repo, update_config=not no_config_update)
 
         console.print(f"\n[green]Connected to repository![/green]")
         console.print(f"Repository: {result['repository']['full_name']}")
         console.print(f"URL: {result['url']}")
 
     except Exception as e:
-        handle_error(e, ctx.obj.get('debug', False))
+        handle_error(e, ctx.obj.get("debug", False))
         raise click.ClickException("Repository connection failed")
 
 
-@repo_group.command(name='validate')
-@click.option(
-    '--repository',
-    help='Repository in format owner/repo (uses config if not specified)'
-)
-@click.option(
-    '--no-labels',
-    is_flag=True,
-    help='Skip label validation'
-)
-@click.option(
-    '--no-permissions',
-    is_flag=True,
-    help='Skip permission checks'
-)
+@repo_group.command(name="validate")
+@click.option("--repository", help="Repository in format owner/repo (uses config if not specified)")
+@click.option("--no-labels", is_flag=True, help="Skip label validation")
+@click.option("--no-permissions", is_flag=True, help="Skip permission checks")
 @click.pass_context
 def repo_validate(
-    ctx: click.Context,
-    repository: Optional[str],
-    no_labels: bool,
-    no_permissions: bool
+    ctx: click.Context, repository: Optional[str], no_labels: bool, no_permissions: bool
 ) -> None:
     """Validate repository setup for DevFlow."""
     from devflow.cli.commands.repo import validate_repository_setup
@@ -663,35 +553,26 @@ def repo_validate(
         repo = None
 
         if repository:
-            if '/' not in repository:
+            if "/" not in repository:
                 raise click.BadParameter("Repository must be in format: owner/repo")
-            owner, repo = repository.split('/', 1)
+            owner, repo = repository.split("/", 1)
 
         result = validate_repository_setup(
-            owner=owner,
-            repo=repo,
-            check_labels=not no_labels,
-            check_permissions=not no_permissions
+            owner=owner, repo=repo, check_labels=not no_labels, check_permissions=not no_permissions
         )
 
-        if not result['success']:
+        if not result["success"]:
             raise click.ClickException("Repository validation failed")
 
     except Exception as e:
-        handle_error(e, ctx.obj.get('debug', False))
+        handle_error(e, ctx.obj.get("debug", False))
         raise click.ClickException("Repository validation failed")
 
 
-@repo_group.command(name='setup-labels')
-@click.option(
-    '--repository',
-    help='Repository in format owner/repo (uses config if not specified)'
-)
+@repo_group.command(name="setup-labels")
+@click.option("--repository", help="Repository in format owner/repo (uses config if not specified)")
 @click.pass_context
-def repo_setup_labels(
-    ctx: click.Context,
-    repository: Optional[str]
-) -> None:
+def repo_setup_labels(ctx: click.Context, repository: Optional[str]) -> None:
     """Set up DevFlow standard labels in repository."""
     from devflow.cli.commands.repo import setup_repository_labels
 
@@ -700,52 +581,39 @@ def repo_setup_labels(
         repo = None
 
         if repository:
-            if '/' not in repository:
+            if "/" not in repository:
                 raise click.BadParameter("Repository must be in format: owner/repo")
-            owner, repo = repository.split('/', 1)
+            owner, repo = repository.split("/", 1)
 
         result = setup_repository_labels(owner=owner, repo=repo)
 
         console.print(f"\n[green]Labels configured for {result['owner']}/{result['repo']}![/green]")
 
     except Exception as e:
-        handle_error(e, ctx.obj.get('debug', False))
+        handle_error(e, ctx.obj.get("debug", False))
         raise click.ClickException("Label setup failed")
 
 
-@cli.group(name='autofix')
+@cli.group(name="autofix")
 @click.pass_context
 def autofix_group(ctx: click.Context) -> None:
     """Auto-fix CI failures and review feedback."""
     pass
 
 
-@autofix_group.command(name='pr')
-@click.argument('pr_number', type=int)
+@autofix_group.command(name="pr")
+@click.argument("pr_number", type=int)
+@click.option("--max-iterations", default=3, help="Maximum auto-fix iterations", show_default=True)
 @click.option(
-    '--max-iterations',
-    default=3,
-    help='Maximum auto-fix iterations',
-    show_default=True
-)
-@click.option(
-    '--working-dir',
+    "--working-dir",
     type=click.Path(exists=True, file_okay=False),
-    default='.',
-    help='Working directory (default: current directory)'
+    default=".",
+    help="Working directory (default: current directory)",
 )
-@click.option(
-    '--dry-run',
-    is_flag=True,
-    help='Show what would be fixed without making changes'
-)
+@click.option("--dry-run", is_flag=True, help="Show what would be fixed without making changes")
 @click.pass_context
 def autofix_pr(
-    ctx: click.Context,
-    pr_number: int,
-    max_iterations: int,
-    working_dir: str,
-    dry_run: bool
+    ctx: click.Context, pr_number: int, max_iterations: int, working_dir: str, dry_run: bool
 ) -> None:
     """Auto-fix issues for a specific pull request."""
     from devflow.cli.commands.autofix import pr as autofix_pr_cmd
@@ -753,60 +621,47 @@ def autofix_pr(
     try:
         autofix_pr_cmd.callback(pr_number, max_iterations, working_dir, dry_run)
     except Exception as e:
-        handle_error(e, ctx.obj.get('debug', False))
+        handle_error(e, ctx.obj.get("debug", False))
         raise click.ClickException("Auto-fix failed")
 
 
-@autofix_group.command(name='monitor')
+@autofix_group.command(name="monitor")
 @click.option(
-    '--working-dir',
+    "--working-dir",
     type=click.Path(exists=True, file_okay=False),
-    default='.',
-    help='Working directory (default: current directory)'
+    default=".",
+    help="Working directory (default: current directory)",
 )
-@click.option(
-    '--max-prs',
-    default=10,
-    help='Maximum number of PRs to check',
-    show_default=True
-)
+@click.option("--max-prs", default=10, help="Maximum number of PRs to check", show_default=True)
 @click.pass_context
-def autofix_monitor(
-    ctx: click.Context,
-    working_dir: str,
-    max_prs: int
-) -> None:
+def autofix_monitor(ctx: click.Context, working_dir: str, max_prs: int) -> None:
     """Monitor open PRs and auto-fix any CI failures."""
     from devflow.cli.commands.autofix import monitor as autofix_monitor_cmd
 
     try:
         autofix_monitor_cmd.callback(working_dir, max_prs)
     except Exception as e:
-        handle_error(e, ctx.obj.get('debug', False))
+        handle_error(e, ctx.obj.get("debug", False))
         raise click.ClickException("Auto-fix monitoring failed")
 
 
-@autofix_group.command(name='status')
-@click.argument('pr_number', type=int)
+@autofix_group.command(name="status")
+@click.argument("pr_number", type=int)
 @click.option(
-    '--working-dir',
+    "--working-dir",
     type=click.Path(exists=True, file_okay=False),
-    default='.',
-    help='Working directory (default: current directory)'
+    default=".",
+    help="Working directory (default: current directory)",
 )
 @click.pass_context
-def autofix_status(
-    ctx: click.Context,
-    pr_number: int,
-    working_dir: str
-) -> None:
+def autofix_status(ctx: click.Context, pr_number: int, working_dir: str) -> None:
     """Check auto-fix status for a pull request."""
     from devflow.cli.commands.autofix import status as autofix_status_cmd
 
     try:
         autofix_status_cmd.callback(pr_number, working_dir)
     except Exception as e:
-        handle_error(e, ctx.obj.get('debug', False))
+        handle_error(e, ctx.obj.get("debug", False))
         raise click.ClickException("Auto-fix status check failed")
 
 
@@ -827,22 +682,30 @@ def presets(ctx: click.Context) -> None:
             # Create panel for each preset
             content = Text()
             content.append(f"{preset['description']}\n\n", style="italic")
-            content.append(f"Coverage: {preset['min_coverage']}% min, {preset['coverage_goal']}% goal\n")
+            content.append(
+                f"Coverage: {preset['min_coverage']}% min, {preset['coverage_goal']}% goal\n"
+            )
             content.append(f"Security: {preset['security_level']}\n")
             content.append(f"Review: {preset['review_strictness']}\n")
-            content.append(f"Breaking changes: {'allowed' if preset['allow_breaking_changes'] else 'forbidden'}\n")
-            content.append(f"Changelog: {'required' if preset['require_changelog'] else 'optional'}\n")
-            content.append(f"Migration guide: {'required' if preset['require_migration_guide'] else 'optional'}")
+            content.append(
+                f"Breaking changes: {'allowed' if preset['allow_breaking_changes'] else 'forbidden'}\n"
+            )
+            content.append(
+                f"Changelog: {'required' if preset['require_changelog'] else 'optional'}\n"
+            )
+            content.append(
+                f"Migration guide: {'required' if preset['require_migration_guide'] else 'optional'}"
+            )
 
             panel = Panel(
                 content,
                 title=f"[bold]{level.title()}[/bold]",
-                border_style="blue" if level == "early_stage" else "dim"
+                border_style="blue" if level == "early_stage" else "dim",
             )
             console.print(panel)
 
     except Exception as e:
-        handle_error(e, ctx.obj.get('debug', False))
+        handle_error(e, ctx.obj.get("debug", False))
         raise click.ClickException("Preset listing failed")
 
 
@@ -861,5 +724,5 @@ def main() -> None:
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

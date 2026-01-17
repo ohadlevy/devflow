@@ -7,17 +7,18 @@ by mocking GitHub API calls and AI agent responses.
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
 
-from devflow.core.workflow_engine import WorkflowEngine, WorkflowState
-from devflow.core.config import ProjectConfig
 from devflow.adapters.base import Issue, IssueState, PullRequest, PullRequestState, ReviewDecision
-from devflow.agents.base import ValidationResult, ImplementationResult, AgentCapability
-from devflow.exceptions import WorkflowError
+from devflow.agents.base import AgentCapability, ImplementationResult, ValidationResult
 
 # Import the auto-fix system we just created
 from devflow.core.auto_fix import AutoFixEngine, FeedbackType, FixPriority
+from devflow.core.config import ProjectConfig
+from devflow.core.workflow_engine import WorkflowEngine, WorkflowState
+from devflow.exceptions import WorkflowError
 
 
 class MockGitHubAdapter:
@@ -52,7 +53,7 @@ class MockGitHubAdapter:
                 created_at="2024-01-08T10:00:00Z",
                 updated_at="2024-01-08T10:00:00Z",
                 url=f"https://github.com/{owner}/{repo}/issues/{issue_number}",
-                platform_data={}
+                platform_data={},
             )
         return self.issues[issue_number]
 
@@ -74,7 +75,7 @@ class MockGitHubAdapter:
             updated_at="2024-01-08T10:00:00Z",
             mergeable=True,
             url=f"https://github.com/{owner}/{repo}/pull/{pr_number}",
-            platform_data={}
+            platform_data={},
         )
         self.prs[pr_number] = pr
         return pr
@@ -86,7 +87,7 @@ class MockGitHubAdapter:
             "pr_number": pr_number,
             "body": body,
             "decision": decision,
-            "created_at": "2024-01-08T10:00:00Z"
+            "created_at": "2024-01-08T10:00:00Z",
         }
         return Mock(id=review_id)
 
@@ -100,7 +101,7 @@ class MockGitHubAdapter:
         return [
             {"filename": "src/devflow/core/workflow_engine.py", "status": "modified"},
             {"filename": "src/devflow/agents/claude.py", "status": "modified"},
-            {"filename": "tests/unit/test_workflow_engine.py", "status": "added"}
+            {"filename": "tests/unit/test_workflow_engine.py", "status": "added"},
         ]
 
 
@@ -109,7 +110,11 @@ class MockAIAgent:
 
     def __init__(self, validation_result=ValidationResult.VALID):
         self.validation_result = validation_result
-        self.capabilities = [AgentCapability.VALIDATION, AgentCapability.IMPLEMENTATION, AgentCapability.REVIEW]
+        self.capabilities = [
+            AgentCapability.VALIDATION,
+            AgentCapability.IMPLEMENTATION,
+            AgentCapability.REVIEW,
+        ]
 
     @property
     def name(self):
@@ -125,34 +130,37 @@ class MockAIAgent:
     def validate_issue(self, context):
         """Mock validation response."""
         from devflow.agents.base import ValidationResponse
+
         return ValidationResponse(
             success=True,
             message="Mock validation successful",
             data={"mock": True},
             result=self.validation_result,
             confidence=0.95,
-            reasoning="This is a mock validation for testing"
+            reasoning="This is a mock validation for testing",
         )
 
     def implement_changes(self, context):
         """Mock implementation response."""
         from devflow.agents.base import ImplementationResponse
+
         return ImplementationResponse(
             success=True,
             message="Mock implementation completed",
             data={"files_changed": ["src/test.py"], "commits": ["feat: mock implementation"]},
-            result=ImplementationResult.SUCCESS
+            result=ImplementationResult.SUCCESS,
         )
 
     def review_code(self, context):
         """Mock review response."""
         from devflow.agents.base import ReviewResponse
+
         return ReviewResponse(
             success=True,
             message="Mock code review - looks good!",
             data={"mock": True},
             decision=ReviewDecision.APPROVED,
-            confidence=0.9
+            confidence=0.9,
         )
 
 
@@ -180,7 +188,8 @@ def temp_project_root():
         # Create basic project structure
         (project_root / "src").mkdir()
         (project_root / "tests").mkdir()
-        (project_root / "devflow.yaml").write_text("""
+        (project_root / "devflow.yaml").write_text(
+            """
 project_name: "test_project"
 project_root: "."
 repo_owner: "test_owner"
@@ -196,7 +205,8 @@ agents:
 workflows:
   validation_requires_approval: false
   implementation_max_iterations: 3
-""")
+"""
+        )
 
         yield project_root
 
@@ -229,7 +239,7 @@ def workflow_engine(mock_config, mock_platform_adapter, mock_agent_coordinator):
         platform_adapter=mock_platform_adapter,
         agent_coordinator=mock_agent_coordinator,
         state_manager=None,  # Disabled for testing
-        enable_auto_fix=False  # Disable auto-fix for simpler testing
+        enable_auto_fix=False,  # Disable auto-fix for simpler testing
     )
 
 
@@ -240,16 +250,12 @@ class TestCompleteWorkflow:
         """Test complete workflow: validation → implementation → review → PR."""
 
         # Act: Process issue through complete workflow
-        result = workflow_engine.process_issue(
-            issue_number=1,
-            auto_mode=True,
-            dry_run=False
-        )
+        result = workflow_engine.process_issue(issue_number=1, auto_mode=True, dry_run=False)
 
         # Assert: Workflow completed successfully
-        assert result['success'] is True
-        assert result['issue_number'] == 1
-        assert len(result['stages_completed']) > 0
+        assert result["success"] is True
+        assert result["issue_number"] == 1
+        assert len(result["stages_completed"]) > 0
 
         # Assert: PR was created
         assert len(mock_platform_adapter.prs) == 1
@@ -273,23 +279,25 @@ class TestCompleteWorkflow:
             platform_adapter=mock_platform_adapter,
             agent_coordinator=agent_coordinator,
             state_manager=None,
-            enable_auto_fix=False  # Disable auto-fix for simpler testing
+            enable_auto_fix=False,  # Disable auto-fix for simpler testing
         )
 
         # Act: Process issue
         result = engine.process_issue(issue_number=2, auto_mode=True)
 
         # Assert: Workflow stopped at validation
-        assert result['success'] is False
-        assert 'validation' in result['stages_completed'] or len(result['stages_completed']) == 0
+        assert result["success"] is False
+        assert "validation" in result["stages_completed"] or len(result["stages_completed"]) == 0
 
-    def test_state_recovery_after_interruption(self, workflow_engine, mock_platform_adapter, temp_project_root):
+    def test_state_recovery_after_interruption(
+        self, workflow_engine, mock_platform_adapter, temp_project_root
+    ):
         """Test workflow recovery after interruption."""
 
         # Arrange: Simulate existing branch with implementation
         branch_name = "issue-3"
 
-        with patch('subprocess.run') as mock_subprocess:
+        with patch("subprocess.run") as mock_subprocess:
             # Mock git commands to simulate existing branch
             mock_subprocess.return_value.returncode = 0
             mock_subprocess.return_value.stdout = "some implementation commit"
@@ -298,9 +306,9 @@ class TestCompleteWorkflow:
             result = workflow_engine.process_issue(issue_number=3, auto_mode=True)
 
             # Assert: Should detect existing implementation and skip to review
-            assert result['success'] is True
+            assert result["success"] is True
 
-    @patch('devflow.core.workflow_engine.subprocess.run')
+    @patch("devflow.core.workflow_engine.subprocess.run")
     def test_worktree_creation_and_cleanup(self, mock_subprocess, workflow_engine):
         """Test git worktree creation and management."""
 
@@ -312,8 +320,9 @@ class TestCompleteWorkflow:
 
         # Assert: Git worktree commands were called
         assert mock_subprocess.called
-        worktree_calls = [call for call in mock_subprocess.call_args_list
-                         if 'worktree' in str(call)]
+        worktree_calls = [
+            call for call in mock_subprocess.call_args_list if "worktree" in str(call)
+        ]
         assert len(worktree_calls) > 0
 
     def test_review_feedback_integration(self, workflow_engine, mock_platform_adapter):
@@ -340,7 +349,7 @@ class TestAutoFixIntegration:
         auto_fix_engine = AutoFixEngine(
             platform_adapter=mock_platform_adapter,
             agent_provider=mock_agent,
-            working_directory="/tmp/test"
+            working_directory="/tmp/test",
         )
 
         # Act: Run auto-fix cycle
@@ -358,10 +367,11 @@ class TestAutoFixIntegration:
             "pr_number": 1,
             "body": "Please add error handling to the subprocess calls.",
             "decision": ReviewDecision.REQUEST_CHANGES,
-            "state": "REQUEST_CHANGES"
+            "state": "REQUEST_CHANGES",
         }
 
         from devflow.core.auto_fix import ReviewFeedbackDetector
+
         detector = ReviewFeedbackDetector()
 
         # Act: Detect feedback
@@ -379,7 +389,7 @@ class TestStateManagement:
     def test_workflow_state_detection_from_git(self, workflow_engine, temp_project_root):
         """Test state detection from git branches and commits."""
 
-        with patch('subprocess.run') as mock_subprocess:
+        with patch("subprocess.run") as mock_subprocess:
             # Mock existing branch with commits
             mock_subprocess.return_value.returncode = 0
             mock_subprocess.return_value.stdout = "commit abc123 Implementation complete"
@@ -408,13 +418,13 @@ class TestStateManagement:
         error_scenarios = [
             {"error": "git worktree failure", "expected_behavior": "retry or fallback"},
             {"error": "AI agent timeout", "expected_behavior": "retry with different agent"},
-            {"error": "GitHub API rate limit", "expected_behavior": "retry with backoff"}
+            {"error": "GitHub API rate limit", "expected_behavior": "retry with backoff"},
         ]
 
         for scenario in error_scenarios:
             # This would test specific error handling
             # For now, just verify the structure exists
-            assert hasattr(workflow_engine, '_execute_workflow')
+            assert hasattr(workflow_engine, "_execute_workflow")
 
 
 if __name__ == "__main__":

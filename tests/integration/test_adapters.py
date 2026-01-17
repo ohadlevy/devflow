@@ -1,10 +1,11 @@
 """Integration tests for platform adapters."""
 
-import pytest
 from pathlib import Path
 
+import pytest
+
+from devflow.adapters.base import IssueState, MergeStrategy, PullRequestState
 from devflow.adapters.git.basic import BasicGitAdapter
-from devflow.adapters.base import IssueState, PullRequestState, MergeStrategy
 from devflow.exceptions import PlatformError
 
 
@@ -17,7 +18,7 @@ class TestBasicGitAdapter:
         config = {
             "repo_owner": "test-owner",
             "repo_name": "test-repo",
-            "project_root": str(Path.cwd())
+            "project_root": str(Path.cwd()),
         }
         return BasicGitAdapter(config)
 
@@ -65,7 +66,7 @@ class TestBasicGitAdapter:
             repo="test-repo",
             title="Test Issue",
             body="Test issue body",
-            labels=["bug", "test"]
+            labels=["bug", "test"],
         )
         assert issue.title == "Test Issue"
         assert issue.body == "Test issue body"
@@ -79,7 +80,7 @@ class TestBasicGitAdapter:
             repo="test-repo",
             issue_number=123,
             title="Updated Title",
-            state=IssueState.CLOSED
+            state=IssueState.CLOSED,
         )
         assert updated_issue.title == "Updated Title"
         assert updated_issue.state == IssueState.CLOSED
@@ -87,10 +88,7 @@ class TestBasicGitAdapter:
     def test_add_issue_comment(self, adapter):
         """Test adding issue comment."""
         result = adapter.add_issue_comment(
-            owner="test-owner",
-            repo="test-repo",
-            issue_number=123,
-            body="Test comment"
+            owner="test-owner", repo="test-repo", issue_number=123, body="Test comment"
         )
         assert result["body"] == "Test comment"
         assert result["mock"] is True
@@ -117,7 +115,7 @@ class TestBasicGitAdapter:
             title="Test PR",
             body="Test PR body",
             source_branch="feature/test",
-            target_branch="main"
+            target_branch="main",
         )
         assert pr.title == "Test PR"
         assert pr.body == "Test PR body"
@@ -132,7 +130,7 @@ class TestBasicGitAdapter:
             repo="test-repo",
             pr_number=456,
             title="Updated PR Title",
-            state=PullRequestState.CLOSED
+            state=PullRequestState.CLOSED,
         )
         assert updated_pr.title == "Updated PR Title"
         assert updated_pr.state == PullRequestState.CLOSED
@@ -144,7 +142,7 @@ class TestBasicGitAdapter:
             repo="test-repo",
             pr_number=456,
             merge_strategy=MergeStrategy.SQUASH,
-            commit_title="Test merge"
+            commit_title="Test merge",
         )
         assert result["merged"] is True
         assert result["strategy"] == "squash"
@@ -176,7 +174,7 @@ class TestBasicGitAdapter:
         config = {
             "repo_owner": "test-owner",
             "repo_name": "test-repo",
-            "project_root": "/nonexistent/path"
+            "project_root": "/nonexistent/path",
         }
         with pytest.raises(PlatformError):
             BasicGitAdapter(config)

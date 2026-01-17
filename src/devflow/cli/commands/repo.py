@@ -19,7 +19,7 @@ def create_repository(
     owner: Optional[str] = None,
     description: str = "",
     private: bool = False,
-    setup_labels: bool = True
+    setup_labels: bool = True,
 ) -> dict:
     """Create a new GitHub repository.
 
@@ -40,28 +40,19 @@ def create_repository(
         # Get authenticated user if no owner specified
         if not owner:
             result = subprocess.run(
-                ["gh", "api", "/user", "--jq", ".login"],
-                capture_output=True,
-                text=True,
-                check=True
+                ["gh", "api", "/user", "--jq", ".login"], capture_output=True, text=True, check=True
             )
             owner = result.stdout.strip()
 
         # Create GitHub adapter
-        adapter_config = {
-            "repo_owner": owner,
-            "repo_name": name
-        }
+        adapter_config = {"repo_owner": owner, "repo_name": name}
         adapter = GitHubPlatformAdapter(adapter_config)
 
         console.print(f"[blue]Creating repository {owner}/{name}...[/blue]")
 
         # Create the repository
         repository = adapter.create_repository(
-            owner=owner,
-            repo=name,
-            description=description,
-            private=private
+            owner=owner, repo=name, description=description, private=private
         )
 
         console.print(f"[green]✓ Repository created: {repository.url}[/green]")
@@ -80,7 +71,7 @@ def create_repository(
             subprocess.run(
                 ["git", "remote", "add", "origin", repository.ssh_url],
                 check=False,  # Don't fail if remote already exists
-                capture_output=True
+                capture_output=True,
             )
             console.print("[green]✓ Git remote added[/green]")
         except Exception:
@@ -90,7 +81,7 @@ def create_repository(
             "success": True,
             "repository": repository.__dict__,
             "url": repository.url,
-            "ssh_url": repository.ssh_url
+            "ssh_url": repository.ssh_url,
         }
 
     except Exception as e:
@@ -116,10 +107,7 @@ def connect_repository(owner: str, repo: str, update_config: bool = True) -> dic
         console.print(f"[blue]Connecting to {owner}/{repo}...[/blue]")
 
         # Create adapter and validate connection
-        adapter_config = {
-            "repo_owner": owner,
-            "repo_name": repo
-        }
+        adapter_config = {"repo_owner": owner, "repo_name": repo}
         adapter = GitHubPlatformAdapter(adapter_config)
 
         # Test connection and get repository info
@@ -155,7 +143,7 @@ def connect_repository(owner: str, repo: str, update_config: bool = True) -> dic
             subprocess.run(
                 ["git", "remote", "add", "origin", repository.ssh_url],
                 check=False,  # Don't fail if remote already exists
-                capture_output=True
+                capture_output=True,
             )
             console.print("[green]✓ Git remote configured[/green]")
 
@@ -167,7 +155,7 @@ def connect_repository(owner: str, repo: str, update_config: bool = True) -> dic
             "repository": repository.__dict__,
             "owner": owner,
             "repo": repo,
-            "url": repository.url
+            "url": repository.url,
         }
 
     except Exception as e:
@@ -179,7 +167,7 @@ def validate_repository_setup(
     owner: Optional[str] = None,
     repo: Optional[str] = None,
     check_labels: bool = True,
-    check_permissions: bool = True
+    check_permissions: bool = True,
 ) -> dict:
     """Validate repository setup for DevFlow.
 
@@ -203,17 +191,16 @@ def validate_repository_setup(
                 owner = owner or config.repo_owner
                 repo = repo or config.repo_name
             except ConfigurationError:
-                raise ConfigurationError("No repository configured. Use 'devflow repo connect' first.")
+                raise ConfigurationError(
+                    "No repository configured. Use 'devflow repo connect' first."
+                )
 
         if not owner or not repo:
             raise ConfigurationError("Repository owner and name must be specified")
 
         console.print(f"[blue]Validating repository setup: {owner}/{repo}[/blue]")
 
-        adapter_config = {
-            "repo_owner": owner,
-            "repo_name": repo
-        }
+        adapter_config = {"repo_owner": owner, "repo_name": repo}
         adapter = GitHubPlatformAdapter(adapter_config)
 
         validation_results = []
@@ -221,110 +208,142 @@ def validate_repository_setup(
         # Basic connection test
         try:
             if adapter.validate_connection():
-                validation_results.append({
-                    "check": "Repository Access",
-                    "status": "✓",
-                    "message": "Can access repository"
-                })
+                validation_results.append(
+                    {
+                        "check": "Repository Access",
+                        "status": "✓",
+                        "message": "Can access repository",
+                    }
+                )
             else:
-                validation_results.append({
-                    "check": "Repository Access",
-                    "status": "✗",
-                    "message": "Cannot access repository"
-                })
+                validation_results.append(
+                    {
+                        "check": "Repository Access",
+                        "status": "✗",
+                        "message": "Cannot access repository",
+                    }
+                )
         except Exception as e:
-            validation_results.append({
-                "check": "Repository Access",
-                "status": "✗",
-                "message": str(e)
-            })
+            validation_results.append(
+                {"check": "Repository Access", "status": "✗", "message": str(e)}
+            )
 
         # Check permissions
         if check_permissions:
             try:
                 # Try to list issues to test read permissions
                 issues = adapter.list_issues(owner, repo, limit=1)
-                validation_results.append({
-                    "check": "Read Permissions",
-                    "status": "✓",
-                    "message": "Can read issues and PRs"
-                })
+                validation_results.append(
+                    {
+                        "check": "Read Permissions",
+                        "status": "✓",
+                        "message": "Can read issues and PRs",
+                    }
+                )
 
                 # Try to create a test label to check write permissions (then delete it)
                 try:
-                    subprocess.run([
-                        "gh", "label", "create", "devflow-test-label",
-                        "--repo", f"{owner}/{repo}",
-                        "--color", "000000",
-                        "--description", "Test label"
-                    ], check=True, capture_output=True)
+                    subprocess.run(
+                        [
+                            "gh",
+                            "label",
+                            "create",
+                            "devflow-test-label",
+                            "--repo",
+                            f"{owner}/{repo}",
+                            "--color",
+                            "000000",
+                            "--description",
+                            "Test label",
+                        ],
+                        check=True,
+                        capture_output=True,
+                    )
 
-                    subprocess.run([
-                        "gh", "label", "delete", "devflow-test-label",
-                        "--repo", f"{owner}/{repo}",
-                        "--yes"
-                    ], check=True, capture_output=True)
+                    subprocess.run(
+                        [
+                            "gh",
+                            "label",
+                            "delete",
+                            "devflow-test-label",
+                            "--repo",
+                            f"{owner}/{repo}",
+                            "--yes",
+                        ],
+                        check=True,
+                        capture_output=True,
+                    )
 
-                    validation_results.append({
-                        "check": "Write Permissions",
-                        "status": "✓",
-                        "message": "Can create issues, PRs, and labels"
-                    })
+                    validation_results.append(
+                        {
+                            "check": "Write Permissions",
+                            "status": "✓",
+                            "message": "Can create issues, PRs, and labels",
+                        }
+                    )
                 except subprocess.CalledProcessError:
-                    validation_results.append({
-                        "check": "Write Permissions",
-                        "status": "✗",
-                        "message": "Cannot create/modify repository resources"
-                    })
+                    validation_results.append(
+                        {
+                            "check": "Write Permissions",
+                            "status": "✗",
+                            "message": "Cannot create/modify repository resources",
+                        }
+                    )
 
             except Exception as e:
-                validation_results.append({
-                    "check": "Permissions",
-                    "status": "✗",
-                    "message": str(e)
-                })
+                validation_results.append(
+                    {"check": "Permissions", "status": "✗", "message": str(e)}
+                )
 
         # Check for DevFlow labels
         if check_labels:
             try:
-                result = subprocess.run([
-                    "gh", "label", "list",
-                    "--repo", f"{owner}/{repo}",
-                    "--json", "name"
-                ], check=True, capture_output=True, text=True)
+                result = subprocess.run(
+                    ["gh", "label", "list", "--repo", f"{owner}/{repo}", "--json", "name"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
 
                 import json
+
                 existing_labels = {label["name"] for label in json.loads(result.stdout)}
 
                 required_labels = [
-                    "bug", "enhancement", "documentation",
-                    "automated-fix", "needs-human-review"
+                    "bug",
+                    "enhancement",
+                    "documentation",
+                    "automated-fix",
+                    "needs-human-review",
                 ]
 
-                missing_labels = [label for label in required_labels if label not in existing_labels]
+                missing_labels = [
+                    label for label in required_labels if label not in existing_labels
+                ]
 
                 if not missing_labels:
-                    validation_results.append({
-                        "check": "DevFlow Labels",
-                        "status": "✓",
-                        "message": "All required labels present"
-                    })
+                    validation_results.append(
+                        {
+                            "check": "DevFlow Labels",
+                            "status": "✓",
+                            "message": "All required labels present",
+                        }
+                    )
                 else:
-                    validation_results.append({
-                        "check": "DevFlow Labels",
-                        "status": "⚠",
-                        "message": f"Missing labels: {', '.join(missing_labels)}"
-                    })
+                    validation_results.append(
+                        {
+                            "check": "DevFlow Labels",
+                            "status": "⚠",
+                            "message": f"Missing labels: {', '.join(missing_labels)}",
+                        }
+                    )
 
             except Exception as e:
-                validation_results.append({
-                    "check": "Labels",
-                    "status": "✗",
-                    "message": str(e)
-                })
+                validation_results.append({"check": "Labels", "status": "✗", "message": str(e)})
 
         # Display results
         from rich.table import Table
+
         table = Table(title=f"Repository Validation: {owner}/{repo}")
         table.add_column("Check", style="cyan")
         table.add_column("Status", justify="center")
@@ -344,22 +363,14 @@ def validate_repository_setup(
             console.print(f"\n[yellow]⚠ Repository {owner}/{repo} has some issues[/yellow]")
             console.print("Consider running: devflow repo setup-labels")
 
-        return {
-            "success": all_passed,
-            "results": validation_results,
-            "owner": owner,
-            "repo": repo
-        }
+        return {"success": all_passed, "results": validation_results, "owner": owner, "repo": repo}
 
     except Exception as e:
         console.print(f"[red]✗ Validation failed: {str(e)}[/red]")
         raise
 
 
-def setup_repository_labels(
-    owner: Optional[str] = None,
-    repo: Optional[str] = None
-) -> dict:
+def setup_repository_labels(owner: Optional[str] = None, repo: Optional[str] = None) -> dict:
     """Set up DevFlow standard labels in repository.
 
     Args:
@@ -380,28 +391,23 @@ def setup_repository_labels(
                 owner = owner or config.repo_owner
                 repo = repo or config.repo_name
             except ConfigurationError:
-                raise ConfigurationError("No repository configured. Use 'devflow repo connect' first.")
+                raise ConfigurationError(
+                    "No repository configured. Use 'devflow repo connect' first."
+                )
 
         if not owner or not repo:
             raise ConfigurationError("Repository owner and name must be specified")
 
         console.print(f"[blue]Setting up labels for {owner}/{repo}...[/blue]")
 
-        adapter_config = {
-            "repo_owner": owner,
-            "repo_name": repo
-        }
+        adapter_config = {"repo_owner": owner, "repo_name": repo}
         adapter = GitHubPlatformAdapter(adapter_config)
 
         adapter.setup_repository_labels(owner, repo)
 
         console.print("[green]✓ DevFlow labels configured successfully[/green]")
 
-        return {
-            "success": True,
-            "owner": owner,
-            "repo": repo
-        }
+        return {"success": True, "owner": owner, "repo": repo}
 
     except Exception as e:
         console.print(f"[red]✗ Label setup failed: {str(e)}[/red]")

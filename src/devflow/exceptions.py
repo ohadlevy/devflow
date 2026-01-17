@@ -4,7 +4,7 @@ This module defines the exception hierarchy used throughout DevFlow for
 proper error handling and user feedback.
 """
 
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
 
 class DevFlowError(Exception):
@@ -23,7 +23,7 @@ class DevFlowError(Exception):
         self,
         message: str,
         error_code: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> None:
         super().__init__(message)
         self.message = message
@@ -57,7 +57,7 @@ class ValidationError(DevFlowError):
         field: Optional[str] = None,
         value: Optional[Any] = None,
         validation_errors: Optional[List[str]] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         context = kwargs.pop("context", {})
         if field:
@@ -67,12 +67,7 @@ class ValidationError(DevFlowError):
         if validation_errors:
             context["validation_errors"] = validation_errors
 
-        super().__init__(
-            message,
-            error_code="VALIDATION_ERROR",
-            context=context,
-            **kwargs
-        )
+        super().__init__(message, error_code="VALIDATION_ERROR", context=context, **kwargs)
         self.field = field
         self.value = value
         self.validation_errors = validation_errors or []
@@ -92,12 +87,7 @@ class ConfigurationError(DevFlowError):
         if config_path:
             context["config_path"] = config_path
 
-        super().__init__(
-            message,
-            error_code="CONFIGURATION_ERROR",
-            context=context,
-            **kwargs
-        )
+        super().__init__(message, error_code="CONFIGURATION_ERROR", context=context, **kwargs)
         self.config_path = config_path
 
 
@@ -115,7 +105,7 @@ class PlatformError(DevFlowError):
         message: str,
         platform: Optional[str] = None,
         status_code: Optional[int] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         context = kwargs.pop("context", {})
         if platform:
@@ -123,12 +113,7 @@ class PlatformError(DevFlowError):
         if status_code:
             context["status_code"] = status_code
 
-        super().__init__(
-            message,
-            error_code="PLATFORM_ERROR",
-            context=context,
-            **kwargs
-        )
+        super().__init__(message, error_code="PLATFORM_ERROR", context=context, **kwargs)
         self.platform = platform
         self.status_code = status_code
 
@@ -147,7 +132,7 @@ class AgentError(DevFlowError):
         message: str,
         agent_type: Optional[str] = None,
         operation: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         context = kwargs.pop("context", {})
         if agent_type:
@@ -155,12 +140,7 @@ class AgentError(DevFlowError):
         if operation:
             context["operation"] = operation
 
-        super().__init__(
-            message,
-            error_code="AGENT_ERROR",
-            context=context,
-            **kwargs
-        )
+        super().__init__(message, error_code="AGENT_ERROR", context=context, **kwargs)
         self.agent_type = agent_type
         self.operation = operation
 
@@ -175,11 +155,7 @@ class WorkflowError(DevFlowError):
     """
 
     def __init__(
-        self,
-        message: str,
-        workflow_id: Optional[str] = None,
-        step: Optional[str] = None,
-        **kwargs
+        self, message: str, workflow_id: Optional[str] = None, step: Optional[str] = None, **kwargs
     ) -> None:
         context = kwargs.pop("context", {})
         if workflow_id:
@@ -187,12 +163,7 @@ class WorkflowError(DevFlowError):
         if step:
             context["step"] = step
 
-        super().__init__(
-            message,
-            error_code="WORKFLOW_ERROR",
-            context=context,
-            **kwargs
-        )
+        super().__init__(message, error_code="WORKFLOW_ERROR", context=context, **kwargs)
         self.workflow_id = workflow_id
         self.step = step
 
@@ -211,7 +182,7 @@ class GitOperationError(DevFlowError):
         message: str,
         repository: Optional[str] = None,
         operation: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         context = kwargs.pop("context", {})
         if repository:
@@ -219,12 +190,7 @@ class GitOperationError(DevFlowError):
         if operation:
             context["operation"] = operation
 
-        super().__init__(
-            message,
-            error_code="GIT_ERROR",
-            context=context,
-            **kwargs
-        )
+        super().__init__(message, error_code="GIT_ERROR", context=context, **kwargs)
         self.repository = repository
         self.operation = operation
 
@@ -239,11 +205,7 @@ class AuthenticationError(DevFlowError):
     """
 
     def __init__(
-        self,
-        message: str,
-        service: Optional[str] = None,
-        auth_type: Optional[str] = None,
-        **kwargs
+        self, message: str, service: Optional[str] = None, auth_type: Optional[str] = None, **kwargs
     ) -> None:
         context = kwargs.pop("context", {})
         if service:
@@ -251,12 +213,7 @@ class AuthenticationError(DevFlowError):
         if auth_type:
             context["auth_type"] = auth_type
 
-        super().__init__(
-            message,
-            error_code="AUTH_ERROR",
-            context=context,
-            **kwargs
-        )
+        super().__init__(message, error_code="AUTH_ERROR", context=context, **kwargs)
         self.service = service
         self.auth_type = auth_type
 
@@ -275,7 +232,7 @@ class PermissionError(DevFlowError):
         message: str,
         resource: Optional[str] = None,
         required_permission: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         context = kwargs.pop("context", {})
         if resource:
@@ -283,12 +240,7 @@ class PermissionError(DevFlowError):
         if required_permission:
             context["required_permission"] = required_permission
 
-        super().__init__(
-            message,
-            error_code="PERMISSION_ERROR",
-            context=context,
-            **kwargs
-        )
+        super().__init__(message, error_code="PERMISSION_ERROR", context=context, **kwargs)
         self.resource = resource
         self.required_permission = required_permission
 
@@ -307,7 +259,7 @@ class StateError(DevFlowError):
         message: str,
         current_state: Optional[str] = None,
         requested_state: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         context = kwargs.pop("context", {})
         if current_state:
@@ -315,12 +267,7 @@ class StateError(DevFlowError):
         if requested_state:
             context["requested_state"] = requested_state
 
-        super().__init__(
-            message,
-            error_code="STATE_ERROR",
-            context=context,
-            **kwargs
-        )
+        super().__init__(message, error_code="STATE_ERROR", context=context, **kwargs)
         self.current_state = current_state
         self.requested_state = requested_state
 
@@ -339,7 +286,7 @@ class PluginError(DevFlowError):
         message: str,
         plugin_name: Optional[str] = None,
         plugin_type: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         context = kwargs.pop("context", {})
         if plugin_name:
@@ -347,12 +294,7 @@ class PluginError(DevFlowError):
         if plugin_type:
             context["plugin_type"] = plugin_type
 
-        super().__init__(
-            message,
-            error_code="PLUGIN_ERROR",
-            context=context,
-            **kwargs
-        )
+        super().__init__(message, error_code="PLUGIN_ERROR", context=context, **kwargs)
         self.plugin_name = plugin_name
         self.plugin_type = plugin_type
 
@@ -373,7 +315,7 @@ class AutoFixError(DevFlowError):
         pr_number: Optional[int] = None,
         fix_type: Optional[str] = None,
         stage: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         context = kwargs.pop("context", {})
         if pr_number:
@@ -383,12 +325,7 @@ class AutoFixError(DevFlowError):
         if stage:
             context["stage"] = stage
 
-        super().__init__(
-            message,
-            error_code="AUTOFIX_ERROR",
-            context=context,
-            **kwargs
-        )
+        super().__init__(message, error_code="AUTOFIX_ERROR", context=context, **kwargs)
         self.pr_number = pr_number
         self.fix_type = fix_type
         self.stage = stage

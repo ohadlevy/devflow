@@ -15,6 +15,7 @@ from devflow.exceptions import PlatformError, ValidationError
 
 class IssueState(str, Enum):
     """Standard issue states across platforms."""
+
     OPEN = "open"
     CLOSED = "closed"
     ALL = "all"
@@ -22,6 +23,7 @@ class IssueState(str, Enum):
 
 class PullRequestState(str, Enum):
     """Standard pull request states across platforms."""
+
     OPEN = "open"
     CLOSED = "closed"
     MERGED = "merged"
@@ -31,6 +33,7 @@ class PullRequestState(str, Enum):
 
 class ReviewDecision(str, Enum):
     """Review decision types."""
+
     APPROVED = "approved"
     REQUEST_CHANGES = "request_changes"
     COMMENT = "comment"
@@ -39,6 +42,7 @@ class ReviewDecision(str, Enum):
 
 class MergeStrategy(str, Enum):
     """Pull request merge strategies."""
+
     MERGE = "merge"
     SQUASH = "squash"
     REBASE = "rebase"
@@ -47,6 +51,7 @@ class MergeStrategy(str, Enum):
 @dataclass
 class Issue:
     """Represents an issue across platforms."""
+
     id: str
     number: int
     title: str
@@ -71,6 +76,7 @@ class Issue:
 @dataclass
 class PullRequest:
     """Represents a pull request across platforms."""
+
     id: str
     number: int
     title: str
@@ -100,6 +106,7 @@ class PullRequest:
 @dataclass
 class Review:
     """Represents a code review across platforms."""
+
     id: str
     reviewer: str
     decision: ReviewDecision
@@ -112,6 +119,7 @@ class Review:
 @dataclass
 class ReviewComment:
     """Represents a review comment."""
+
     id: str
     author: str
     body: str
@@ -124,6 +132,7 @@ class ReviewComment:
 @dataclass
 class Repository:
     """Represents a repository across platforms."""
+
     id: str
     name: str
     full_name: str
@@ -140,6 +149,7 @@ class Repository:
 @dataclass
 class WorkflowRun:
     """Represents a CI/CD workflow run."""
+
     id: str
     name: str
     status: str  # pending, success, failure, error
@@ -244,7 +254,7 @@ class PlatformAdapter(ABC):
         repo: str,
         state: IssueState = IssueState.OPEN,
         labels: Optional[List[str]] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Issue]:
         """List repository issues.
 
@@ -271,7 +281,7 @@ class PlatformAdapter(ABC):
         title: str,
         body: str,
         labels: Optional[List[str]] = None,
-        assignees: Optional[List[str]] = None
+        assignees: Optional[List[str]] = None,
     ) -> Issue:
         """Create a new issue.
 
@@ -301,7 +311,7 @@ class PlatformAdapter(ABC):
         body: Optional[str] = None,
         state: Optional[IssueState] = None,
         labels: Optional[List[str]] = None,
-        assignees: Optional[List[str]] = None
+        assignees: Optional[List[str]] = None,
     ) -> Issue:
         """Update an existing issue.
 
@@ -325,11 +335,7 @@ class PlatformAdapter(ABC):
 
     @abstractmethod
     def add_issue_comment(
-        self,
-        owner: str,
-        repo: str,
-        issue_number: int,
-        body: str
+        self, owner: str, repo: str, issue_number: int, body: str
     ) -> Dict[str, Any]:
         """Add a comment to an issue.
 
@@ -371,7 +377,7 @@ class PlatformAdapter(ABC):
         owner: str,
         repo: str,
         state: PullRequestState = PullRequestState.OPEN,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[PullRequest]:
         """List repository pull requests.
 
@@ -398,7 +404,7 @@ class PlatformAdapter(ABC):
         body: str,
         source_branch: str,
         target_branch: str,
-        draft: bool = False
+        draft: bool = False,
     ) -> PullRequest:
         """Create a new pull request.
 
@@ -427,7 +433,7 @@ class PlatformAdapter(ABC):
         pr_number: int,
         title: Optional[str] = None,
         body: Optional[str] = None,
-        state: Optional[PullRequestState] = None
+        state: Optional[PullRequestState] = None,
     ) -> PullRequest:
         """Update an existing pull request.
 
@@ -455,7 +461,7 @@ class PlatformAdapter(ABC):
         pr_number: int,
         merge_strategy: MergeStrategy = MergeStrategy.SQUASH,
         commit_title: Optional[str] = None,
-        commit_message: Optional[str] = None
+        commit_message: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Merge a pull request.
 
@@ -477,12 +483,7 @@ class PlatformAdapter(ABC):
 
     # Review operations
     @abstractmethod
-    def list_pull_request_reviews(
-        self,
-        owner: str,
-        repo: str,
-        pr_number: int
-    ) -> List[Review]:
+    def list_pull_request_reviews(self, owner: str, repo: str, pr_number: int) -> List[Review]:
         """List pull request reviews.
 
         Args:
@@ -506,7 +507,7 @@ class PlatformAdapter(ABC):
         pr_number: int,
         body: str,
         decision: ReviewDecision,
-        comments: Optional[List[Dict[str, Any]]] = None
+        comments: Optional[List[Dict[str, Any]]] = None,
     ) -> Review:
         """Create a pull request review.
 
@@ -527,12 +528,7 @@ class PlatformAdapter(ABC):
         pass
 
     @abstractmethod
-    def get_pull_request_files(
-        self,
-        owner: str,
-        repo: str,
-        pr_number: int
-    ) -> List[Dict[str, Any]]:
+    def get_pull_request_files(self, owner: str, repo: str, pr_number: int) -> List[Dict[str, Any]]:
         """Get files changed in a pull request.
 
         Args:
@@ -551,11 +547,7 @@ class PlatformAdapter(ABC):
     # CI/CD operations
     @abstractmethod
     def list_workflow_runs(
-        self,
-        owner: str,
-        repo: str,
-        branch: Optional[str] = None,
-        limit: int = 100
+        self, owner: str, repo: str, branch: Optional[str] = None, limit: int = 100
     ) -> List[WorkflowRun]:
         """List workflow runs for repository.
 
@@ -574,12 +566,7 @@ class PlatformAdapter(ABC):
         pass
 
     @abstractmethod
-    def get_workflow_run(
-        self,
-        owner: str,
-        repo: str,
-        run_id: str
-    ) -> WorkflowRun:
+    def get_workflow_run(self, owner: str, repo: str, run_id: str) -> WorkflowRun:
         """Get details of a specific workflow run.
 
         Args:
@@ -598,11 +585,7 @@ class PlatformAdapter(ABC):
     # Label operations
     @abstractmethod
     def add_labels_to_issue(
-        self,
-        owner: str,
-        repo: str,
-        issue_number: int,
-        labels: List[str]
+        self, owner: str, repo: str, issue_number: int, labels: List[str]
     ) -> None:
         """Add labels to an issue.
 
@@ -619,11 +602,7 @@ class PlatformAdapter(ABC):
 
     @abstractmethod
     def remove_labels_from_issue(
-        self,
-        owner: str,
-        repo: str,
-        issue_number: int,
-        labels: List[str]
+        self, owner: str, repo: str, issue_number: int, labels: List[str]
     ) -> None:
         """Remove labels from an issue.
 
@@ -685,10 +664,7 @@ class GitProvider(ABC):
 
     @abstractmethod
     def clone_repository(
-        self,
-        repository_url: str,
-        local_path: str,
-        branch: Optional[str] = None
+        self, repository_url: str, local_path: str, branch: Optional[str] = None
     ) -> None:
         """Clone a repository.
 
@@ -708,7 +684,7 @@ class GitProvider(ABC):
         repository_path: str,
         worktree_path: str,
         branch_name: str,
-        base_branch: Optional[str] = None
+        base_branch: Optional[str] = None,
     ) -> None:
         """Create a Git worktree.
 
@@ -738,10 +714,7 @@ class GitProvider(ABC):
 
     @abstractmethod
     def commit_changes(
-        self,
-        repository_path: str,
-        message: str,
-        files: Optional[List[str]] = None
+        self, repository_path: str, message: str, files: Optional[List[str]] = None
     ) -> str:
         """Commit changes to repository.
 
@@ -764,7 +737,7 @@ class GitProvider(ABC):
         repository_path: str,
         branch_name: str,
         remote: str = "origin",
-        set_upstream: bool = True
+        set_upstream: bool = True,
     ) -> None:
         """Push branch to remote repository.
 
@@ -795,12 +768,7 @@ class GitProvider(ABC):
         pass
 
     @abstractmethod
-    def branch_exists(
-        self,
-        repository_path: str,
-        branch_name: str,
-        remote: bool = False
-    ) -> bool:
+    def branch_exists(self, repository_path: str, branch_name: str, remote: bool = False) -> bool:
         """Check if branch exists.
 
         Args:

@@ -15,6 +15,7 @@ from devflow.exceptions import AgentError, ValidationError
 
 class AgentCapability(str, Enum):
     """AI agent capabilities."""
+
     VALIDATION = "validation"
     IMPLEMENTATION = "implementation"
     REVIEW = "review"
@@ -24,6 +25,7 @@ class AgentCapability(str, Enum):
 
 class ValidationResult(str, Enum):
     """Issue validation results."""
+
     VALID = "valid"
     NEEDS_CLARIFICATION = "needs_clarification"
     INVALID = "invalid"
@@ -32,6 +34,7 @@ class ValidationResult(str, Enum):
 
 class ImplementationResult(str, Enum):
     """Implementation results."""
+
     SUCCESS = "success"
     PARTIAL = "partial"
     FAILED = "failed"
@@ -40,6 +43,7 @@ class ImplementationResult(str, Enum):
 
 class ReviewDecision(str, Enum):
     """Code review decisions."""
+
     APPROVE = "approve"
     REQUEST_CHANGES = "request_changes"
     COMMENT = "comment"
@@ -48,6 +52,7 @@ class ReviewDecision(str, Enum):
 
 class IssueSeverity(str, Enum):
     """Issue severity levels."""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -58,6 +63,7 @@ class IssueSeverity(str, Enum):
 @dataclass
 class WorkflowContext:
     """Context information for workflow operations."""
+
     project_name: str
     repository_url: str
     base_branch: str
@@ -78,6 +84,7 @@ class WorkflowContext:
 @dataclass
 class ValidationContext:
     """Context for issue validation."""
+
     issue: Issue
     project_context: Dict[str, Any]
     maturity_level: str
@@ -91,6 +98,7 @@ class ValidationContext:
 @dataclass
 class ImplementationContext:
     """Context for code implementation."""
+
     issue: Issue
     working_directory: str
     project_context: Dict[str, Any]
@@ -108,6 +116,7 @@ class ImplementationContext:
 @dataclass
 class ReviewContext:
     """Context for code review."""
+
     pull_request: PullRequest
     changed_files: List[Dict[str, Any]]
     project_context: Dict[str, Any]
@@ -125,6 +134,7 @@ class ReviewContext:
 @dataclass
 class AgentResponse:
     """Base response from AI agents."""
+
     success: bool
     message: str
     data: Dict[str, Any]
@@ -146,6 +156,7 @@ class AgentResponse:
 @dataclass
 class ValidationResponse(AgentResponse):
     """Response from issue validation."""
+
     result: ValidationResult = ValidationResult.INVALID
     clarifications_needed: List[str] = None
     estimated_complexity: Optional[str] = None
@@ -162,6 +173,7 @@ class ValidationResponse(AgentResponse):
 @dataclass
 class ImplementationResponse(AgentResponse):
     """Response from code implementation."""
+
     result: ImplementationResult = ImplementationResult.FAILED
     files_changed: List[str] = None
     commits_made: List[str] = None
@@ -182,6 +194,7 @@ class ImplementationResponse(AgentResponse):
 @dataclass
 class ReviewResponse(AgentResponse):
     """Response from code review."""
+
     decision: ReviewDecision = ReviewDecision.COMMENT
     severity: IssueSeverity = IssueSeverity.INFO
     issues_found: List[Dict[str, Any]] = None
@@ -293,7 +306,7 @@ class AgentProvider(ABC):
             raise AgentError(
                 f"Agent {self.name} does not support validation capability",
                 agent_type=self.name,
-                operation="validate_issue"
+                operation="validate_issue",
             )
 
         return self._validate_issue_impl(context)
@@ -314,7 +327,7 @@ class AgentProvider(ABC):
             raise AgentError(
                 f"Agent {self.name} does not support implementation capability",
                 agent_type=self.name,
-                operation="implement_changes"
+                operation="implement_changes",
             )
 
         return self._implement_changes_impl(context)
@@ -335,7 +348,7 @@ class AgentProvider(ABC):
             raise AgentError(
                 f"Agent {self.name} does not support review capability",
                 agent_type=self.name,
-                operation="review_code"
+                operation="review_code",
             )
 
         return self._review_code_impl(context)
@@ -356,7 +369,7 @@ class AgentProvider(ABC):
             raise AgentError(
                 f"Agent {self.name} does not support analysis capability",
                 agent_type=self.name,
-                operation="analyze_codebase"
+                operation="analyze_codebase",
             )
 
         return self._analyze_codebase_impl(context)
@@ -377,7 +390,7 @@ class AgentProvider(ABC):
             raise AgentError(
                 f"Agent {self.name} does not support documentation capability",
                 agent_type=self.name,
-                operation="generate_documentation"
+                operation="generate_documentation",
             )
 
         return self._generate_documentation_impl(context)
@@ -432,9 +445,7 @@ class AgentProvider(ABC):
             Default implementation raises NotImplementedError.
             Override this method if the agent supports analysis.
         """
-        raise NotImplementedError(
-            f"Agent {self.name} does not implement codebase analysis"
-        )
+        raise NotImplementedError(f"Agent {self.name} does not implement codebase analysis")
 
     def _generate_documentation_impl(self, context: WorkflowContext) -> Dict[str, Any]:
         """Implementation-specific documentation generation.
@@ -449,9 +460,7 @@ class AgentProvider(ABC):
             Default implementation raises NotImplementedError.
             Override this method if the agent supports documentation generation.
         """
-        raise NotImplementedError(
-            f"Agent {self.name} does not implement documentation generation"
-        )
+        raise NotImplementedError(f"Agent {self.name} does not implement documentation generation")
 
     # Utility methods
     def estimate_token_usage(self, text: str) -> int:
@@ -549,16 +558,13 @@ class MultiAgentCoordinator:
         Returns:
             List of agents with the capability
         """
-        return [
-            agent for agent in self.agents.values()
-            if agent.supports_capability(capability)
-        ]
+        return [agent for agent in self.agents.values() if agent.supports_capability(capability)]
 
     def select_best_agent(
         self,
         capability: AgentCapability,
         context_size: Optional[int] = None,
-        preferences: Optional[List[str]] = None
+        preferences: Optional[List[str]] = None,
     ) -> Optional[AgentProvider]:
         """Select the best agent for a task.
 
@@ -577,10 +583,7 @@ class MultiAgentCoordinator:
 
         # Filter by context size if specified
         if context_size:
-            candidates = [
-                agent for agent in candidates
-                if agent.max_context_size >= context_size
-            ]
+            candidates = [agent for agent in candidates if agent.max_context_size >= context_size]
 
         if not candidates:
             return None
@@ -596,9 +599,7 @@ class MultiAgentCoordinator:
         return candidates[0]
 
     def coordinate_review(
-        self,
-        context: ReviewContext,
-        reviewer_names: Optional[List[str]] = None
+        self, context: ReviewContext, reviewer_names: Optional[List[str]] = None
     ) -> List[ReviewResponse]:
         """Coordinate multi-agent code review.
 
@@ -614,18 +615,16 @@ class MultiAgentCoordinator:
         """
         if reviewer_names:
             reviewers = [
-                self.get_agent(name) for name in reviewer_names
-                if self.get_agent(name) and
-                self.get_agent(name).supports_capability(AgentCapability.REVIEW)
+                self.get_agent(name)
+                for name in reviewer_names
+                if self.get_agent(name)
+                and self.get_agent(name).supports_capability(AgentCapability.REVIEW)
             ]
         else:
             reviewers = self.get_agents_with_capability(AgentCapability.REVIEW)
 
         if not reviewers:
-            raise AgentError(
-                "No suitable review agents available",
-                operation="coordinate_review"
-            )
+            raise AgentError("No suitable review agents available", operation="coordinate_review")
 
         responses = []
         for reviewer in reviewers:
